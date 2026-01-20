@@ -354,21 +354,7 @@ export default function Signup() {
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Sign up to get started</Text>
         </View>
-        {/* --- NEW ROLE SELECTOR AT TOP --- */}
-        <View style={styles.rolePicker}>
-          <TouchableOpacity 
-            style={[styles.roleOption, role === "client" && styles.roleActive]} 
-            onPress={() => setRole("client")}
-          >
-            <Text style={[styles.roleText, role === "client" && styles.roleTextActive]}>User</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.roleOption, role === "worker" && styles.roleActive]} 
-            onPress={() => setRole("worker")}
-          >
-            <Text style={[styles.roleText, role === "worker" && styles.roleTextActive]}>Worker</Text>
-          </TouchableOpacity>
-        </View>
+
 
 
         <View style={styles.card}>

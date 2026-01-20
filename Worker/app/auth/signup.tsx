@@ -380,22 +380,7 @@ export default function Signup() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* ---------- ROLE SELECTOR ---------- */}
-          <View style={styles.rolePicker}>
-            <TouchableOpacity 
-              style={[styles.roleBtn, role === "worker" && styles.activeBtn]} 
-              onPress={() => setRole("worker")}
-            >
-              <Text style={[styles.roleText, role === "worker" && styles.activeText]}>Worker Account</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.roleBtn, role === "client" && styles.activeBtn]} 
-              onPress={() => setRole("client")}
-            >
-              <Text style={[styles.roleText, role === "client" && styles.activeText]}>Client Account</Text>
-            </TouchableOpacity>
-          </View>
-
+          
           {/* ---------- HEADER ---------- */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
