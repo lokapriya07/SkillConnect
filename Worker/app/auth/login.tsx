@@ -14,7 +14,9 @@
 //     TouchableOpacity,
 //     View,
 // } from "react-native";
+// import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// // --- Configuration ---
 // const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // const colors = {
@@ -32,6 +34,8 @@
 //     const [password, setPassword] = useState("");
 //     const [showPassword, setShowPassword] = useState(false);
 //     const [loading, setLoading] = useState(false);
+    
+//     // Global store actions
 //     const { setAuthenticated, setUser } = useAppStore();
 
 //     useEffect(() => {
@@ -47,10 +51,7 @@
 //         }
 
 //         if (!API_URL) {
-//             Alert.alert(
-//                 "Config Error",
-//                 "API URL not found. Restart with: npx expo start -c",
-//             );
+//             Alert.alert("Config Error", "API URL not found. Restart with: npx expo start -c");
 //             return;
 //         }
 
@@ -62,20 +63,30 @@
 //                 body: JSON.stringify({
 //                     email: email.toLowerCase().trim(),
 //                     password: password,
+//                     role: "worker", 
 //                 }),
 //             });
 
 //             const data = await response.json();
 
 //             if (response.ok) {
+//                 // 1. Save dynamic name for the dashboard
+//                 await AsyncStorage.setItem("workerName", data.user.name);
+
+//                 // 2. Update Global Store
 //                 setAuthenticated(true);
 //                 setUser({
 //                     name: data.user.name,
 //                     email: data.user.email,
 //                     phone: data.user.phone || "",
-//                     role: "worker",
+//                     role: data.user.role,
 //                 });
-//                 router.replace("/welcome");
+
+//                 // 3. STEP-BY-STEP FLOW: 
+//                 // Redirect to Phone Verification first (verify-otp)
+//                 // From there you will go to location, then dashboard.
+//                 router.replace("/auth/phone"); 
+                
 //             } else {
 //                 Alert.alert("Login Failed", data.msg || "Check your credentials.");
 //             }
@@ -95,22 +106,18 @@
 //             <View style={styles.contentContainer}>
 //                 <View style={styles.header}>
 //                     <View style={styles.logoContainer}>
-//                         <Ionicons name="water" size={40} color={colors.primaryBlue} />
+//                         <Ionicons name="construct-outline" size={40} color={colors.primaryBlue} />
 //                     </View>
-//                     <Text style={styles.title}>Welcome Back</Text>
+//                     <Text style={styles.title}>Worker Login</Text>
+//                     <Text style={styles.subtitle}>Welcome back to skillconnect</Text>
 //                 </View>
 
 //                 <View style={styles.card}>
 //                     <Text style={styles.inputLabel}>Email</Text>
 //                     <View style={styles.inputContainer}>
-//                         <Ionicons
-//                             name="mail-outline"
-//                             size={20}
-//                             color={colors.primaryBlue}
-//                             style={styles.inputIcon}
-//                         />
+//                         <Ionicons name="mail-outline" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
 //                         <TextInput
-//                             placeholder="name@example.com"
+//                             placeholder="worker@example.com"
 //                             value={email}
 //                             onChangeText={setEmail}
 //                             style={styles.input}
@@ -122,12 +129,7 @@
 
 //                     <Text style={styles.inputLabel}>Password</Text>
 //                     <View style={styles.inputContainer}>
-//                         <Ionicons
-//                             name="lock-closed-outline"
-//                             size={20}
-//                             color={colors.primaryBlue}
-//                             style={styles.inputIcon}
-//                         />
+//                         <Ionicons name="lock-closed-outline" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
 //                         <TextInput
 //                             placeholder="Enter password"
 //                             value={password}
@@ -137,11 +139,7 @@
 //                             editable={!loading}
 //                         />
 //                         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-//                             <Ionicons
-//                                 name={showPassword ? "eye-outline" : "eye-off-outline"}
-//                                 size={22}
-//                                 color={colors.mutedText}
-//                             />
+//                             <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={22} color={colors.mutedText} />
 //                         </TouchableOpacity>
 //                     </View>
 
@@ -150,11 +148,7 @@
 //                         onPress={handleLogin}
 //                         disabled={loading}
 //                     >
-//                         {loading ? (
-//                             <ActivityIndicator color="#FFF" />
-//                         ) : (
-//                             <Text style={styles.primaryButtonText}>Sign In</Text>
-//                         )}
+//                         {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryButtonText}>Sign In</Text>}
 //                     </TouchableOpacity>
 //                 </View>
 
@@ -173,6 +167,7 @@
 //     container: { flex: 1, backgroundColor: colors.background },
 //     contentContainer: { flex: 1, justifyContent: "center", padding: 25 },
 //     header: { alignItems: "center", marginBottom: 30 },
+//     subtitle: { fontSize: 14, color: colors.mutedText, marginTop: 5 },
 //     logoContainer: {
 //         backgroundColor: "#E1F0FF",
 //         padding: 15,
@@ -233,6 +228,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // --- Configuration ---
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -252,6 +248,8 @@ export default function Login() {
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    
+    // Global store actions
     const { setAuthenticated, setUser } = useAppStore();
 
     useEffect(() => {
@@ -267,10 +265,7 @@ export default function Login() {
         }
 
         if (!API_URL) {
-            Alert.alert(
-                "Config Error",
-                "API URL not found. Restart with: npx expo start -c",
-            );
+            Alert.alert("Config Error", "API URL not found. Restart with: npx expo start -c");
             return;
         }
 
@@ -282,23 +277,31 @@ export default function Login() {
                 body: JSON.stringify({
                     email: email.toLowerCase().trim(),
                     password: password,
-                    role: "worker", // <--- UPDATED: Explicitly identifying as worker
+                    role: "worker", 
                 }),
             });
 
             const data = await response.json();
 
             if (response.ok) {
+                // 1. Save dynamic name for the dashboard
+                await AsyncStorage.setItem("workerName", data.user.name);
+
+                // 2. Update Global Store
                 setAuthenticated(true);
                 setUser({
                     name: data.user.name,
                     email: data.user.email,
                     phone: data.user.phone || "",
-                    role: data.user.role, // Use the role returned from the skillconnect DB
+                    role: data.user.role,
                 });
-                router.replace("/welcome");
+
+                // 3. UPDATED REDIRECT: 
+                // After successful login, go to the Welcome page.
+                // Assuming your welcome page is at "/welcome"
+                router.replace("/welcome"); 
+                
             } else {
-                // This will catch if a Client tries to log into the Worker app
                 Alert.alert("Login Failed", data.msg || "Check your credentials.");
             }
         } catch (error) {
@@ -326,12 +329,7 @@ export default function Login() {
                 <View style={styles.card}>
                     <Text style={styles.inputLabel}>Email</Text>
                     <View style={styles.inputContainer}>
-                        <Ionicons
-                            name="mail-outline"
-                            size={20}
-                            color={colors.primaryBlue}
-                            style={styles.inputIcon}
-                        />
+                        <Ionicons name="mail-outline" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
                         <TextInput
                             placeholder="worker@example.com"
                             value={email}
@@ -345,12 +343,7 @@ export default function Login() {
 
                     <Text style={styles.inputLabel}>Password</Text>
                     <View style={styles.inputContainer}>
-                        <Ionicons
-                            name="lock-closed-outline"
-                            size={20}
-                            color={colors.primaryBlue}
-                            style={styles.inputIcon}
-                        />
+                        <Ionicons name="lock-closed-outline" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
                         <TextInput
                             placeholder="Enter password"
                             value={password}
@@ -360,11 +353,7 @@ export default function Login() {
                             editable={!loading}
                         />
                         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                            <Ionicons
-                                name={showPassword ? "eye-outline" : "eye-off-outline"}
-                                size={22}
-                                color={colors.mutedText}
-                            />
+                            <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={22} color={colors.mutedText} />
                         </TouchableOpacity>
                     </View>
 
@@ -373,11 +362,7 @@ export default function Login() {
                         onPress={handleLogin}
                         disabled={loading}
                     >
-                        {loading ? (
-                            <ActivityIndicator color="#FFF" />
-                        ) : (
-                            <Text style={styles.primaryButtonText}>Sign In</Text>
-                        )}
+                        {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryButtonText}>Sign In</Text>}
                     </TouchableOpacity>
                 </View>
 

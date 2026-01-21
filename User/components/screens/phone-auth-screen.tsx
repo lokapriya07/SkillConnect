@@ -13,8 +13,6 @@ import {
   View,
 } from "react-native";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
 export default function PhoneAuthScreen({ onSubmit, onSkip }: any) {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,26 +24,24 @@ export default function PhoneAuthScreen({ onSubmit, onSkip }: any) {
     }
 
     setLoading(true);
-    try {
-      const fullPhone = `+91${phone}`;
-      const response = await fetch(`${API_URL}/api/auth/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: fullPhone }),
-      });
 
-      if (response.ok) {
-        Alert.alert("Success", "Check backend console for OTP");
-        onSubmit(fullPhone); // This triggers navigation to the OTP Input screen
-      } else {
-        const data = await response.json();
-        Alert.alert("Failed", data.msg);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Server unreachable");
-    } finally {
+    // --- MOCK BACKEND LOGIC ---
+    // We use a timeout to simulate the time it takes for a server to respond
+    setTimeout(() => {
       setLoading(false);
-    }
+      const fullPhone = `+91${phone}`;
+      
+      // In a real app, the server would send the SMS here.
+      // For now, we just pretend it worked.
+      Alert.alert(
+        "Demo Mode", 
+        "OTP sent to " + fullPhone + " (Use 123456 as the code)"
+      );
+
+      // Move to the next screen (OTP Input)
+      onSubmit(fullPhone); 
+    }, 1500); 
+    // --- END MOCK LOGIC ---
   };
 
   return (
