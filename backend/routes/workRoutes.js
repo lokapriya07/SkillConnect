@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { updateWorkProfile } = require('../controllers/work');
+const { updateWorkProfile, getWorkProfile, getAllWorkers } = require('../controllers/work');
 
-// Route for updating worker profile
+// Update profile
 router.put('/profile/:userId', updateWorkProfile);
+
+// Get profile (to verify saved data)
+router.get('/profile/:userId', getWorkProfile);
+router.get('/all', getAllWorkers);
 
 module.exports = router;

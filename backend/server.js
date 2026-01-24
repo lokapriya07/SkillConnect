@@ -1,8 +1,9 @@
+
 // const express = require('express');
 // const mongoose = require('mongoose');
 // const cors = require('cors');
-// const path = require('path'); // Added for file paths
-// const fs = require('fs');     // Added for folder management
+// const path = require('path'); 
+// const fs = require('fs');    
 // require('dotenv').config();
 
 // const app = express();
@@ -12,32 +13,36 @@
 // app.use(cors());
 
 // // 1. ENSURE UPLOADS FOLDER EXISTS
-// // This creates the folder where image/video/audio files will be stored
 // const uploadDir = path.join(__dirname, 'uploads');
 // if (!fs.existsSync(uploadDir)) {
 //     fs.mkdirSync(uploadDir);
 // }
 
 // // 2. SERVE STATIC FILES
-// // This allows you to view the files via http://your-ip:5000/uploads/filename.jpg
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// // MongoDB Connection
+// // 3. MONGODB CONNECTION
 // mongoose.connect(process.env.MONGO_URI)
 //     .then(() => console.log("🚀 Connected to MongoDB Atlas: skillconnect database"))
 //     .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// // Routes
+// // 4. ROUTES
 // app.use('/api/auth', require('./routes/auth'));
-// app.use('/api/jobs', require('./routes/jobRoutes')); // Added job routes
+// app.use('/api/jobs', require('./routes/jobRoutes')); 
+
+// // ADDED: Work route for profile storage
+// app.use('/api/work', require('./routes/workRoutes')); 
 
 // const PORT = process.env.PORT || 5000;
-// app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// app.listen(PORT, '0.0.0.0', () => {
+//     console.log(`Server running on http://192.168.0.4:${PORT}`);
+// });
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path'); 
-const fs = require('fs');    
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -47,12 +52,14 @@ app.use(express.json());
 app.use(cors());
 
 // 1. ENSURE UPLOADS FOLDER EXISTS
+// This folder stores images, videos, and audio notes for AI processing
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
 // 2. SERVE STATIC FILES
+// Critical: This allows the mobile app to play audio/video via URL
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 3. MONGODB CONNECTION
@@ -62,12 +69,21 @@ mongoose.connect(process.env.MONGO_URI)
 
 // 4. ROUTES
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/jobs', require('./routes/jobRoutes')); 
 
-// ADDED: Work route for profile storage
-app.use('/api/work', require('./routes/workRoutes')); 
+// Updated: Job Routes handle AI extraction and matching logic
+app.use('/api/jobs', require('./routes/jobRoutes'));
+
+// Work Routes handle worker profiles and skill management
+app.use('/api/work', require('./routes/workRoutes'));
+
+// 5. ERROR HANDLING MIDDLEWARE
+app.use((err, req, res, next) => {
+    console.error("❌ Global Server Error:", err.stack);
+    res.status(500).json({ error: "Internal Server Error" });
+});
 
 const PORT = process.env.PORT || 5000;
+// Use '0.0.0.0' to ensure your Expo app can connect over local Wi-Fi
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://192.168.0.4:${PORT}`);
+    console.log(`✅ Server running on http://192.168.0.2:${PORT}`);
 });

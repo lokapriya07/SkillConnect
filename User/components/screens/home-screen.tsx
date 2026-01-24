@@ -607,24 +607,26 @@ export default function HomeScreen() {
       >
         {/* Active Request Tracker */}
         {activeJob && (
-          <View style={styles.activeJobSection}>
+          <View style={styles.trackerContainer}>
             <TouchableOpacity
-              style={styles.activeJobCard}
-              onPress={() => router.push("/worker-bids" as any)}
+              style={styles.trackerCard}
+              onPress={() => router.push("/worker-bids")}
             >
-              <View style={styles.activeJobHeader}>
-                <View style={styles.statusBadge}>
+              <View style={styles.trackerHeader}>
+                <View style={styles.statusGroup}>
                   <View style={styles.pulseDot} />
-                  <Text style={styles.statusText}>Finding nearby workers...</Text>
+                  <Text style={styles.statusText}>AI Matching In Progress...</Text>
                 </View>
-                <Text style={styles.activeJobBudget}>₹{activeJob.budget}</Text>
+                <Text style={styles.trackerBudget}>₹{activeJob.budget}</Text>
               </View>
-              <Text style={styles.activeJobDesc} numberOfLines={1}>
-                "{activeJob.description}"
+
+              <Text style={styles.trackerDesc} numberOfLines={1}>
+                Matching: "{activeJob.description}"
               </Text>
-              <View style={styles.activeJobFooter}>
-                <Text style={styles.viewBidsText}>View worker bids</Text>
-                <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+
+              <View style={styles.trackerFooter}>
+                <Text style={styles.actionText}>View Ranked Workers ({activeJob.matchedWorkers?.length || 0})</Text>
+                <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
               </View>
             </TouchableOpacity>
           </View>
@@ -864,16 +866,16 @@ const styles = StyleSheet.create({
   },
   activeJobHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   statusBadge: { flexDirection: "row", alignItems: "center" },
-  pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22C55E", marginRight: 6 },
-  statusText: { fontSize: 13, fontWeight: "700", color: "#1E40AF" },
+  // pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22C55E", marginRight: 6 },
+  // statusText: { fontSize: 13, fontWeight: "700", color: "#1E40AF" },
   activeJobBudget: { fontSize: 16, fontWeight: "800", color: Colors.primary },
   activeJobDesc: { fontSize: 14, color: Colors.textSecondary, fontStyle: "italic", marginBottom: 12 },
   activeJobFooter: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", borderTopWidth: 1, borderTopColor: "#D0E4FF", paddingTop: 8 },
   viewBidsText: { fontSize: 13, fontWeight: "600", color: Colors.primary, marginRight: 4 },
 
-  section: { paddingVertical: 15, paddingHorizontal: 20 },
+  // section: { paddingVertical: 15, paddingHorizontal: 20 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: "700", color: Colors.text },
+  // sectionTitle: { fontSize: 18, fontWeight: "700", color: Colors.text },
   seeAllBtn: { flexDirection: "row", alignItems: "center" },
   seeAllText: { fontSize: 14, color: Colors.primary, fontWeight: "600", marginRight: 2 },
   categoriesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
@@ -984,4 +986,21 @@ const styles = StyleSheet.create({
     right: -40,
     top: -20,
   },
+  trackerContainer: { padding: 10, marginTop: -1 },
+  trackerCard: { backgroundColor: 'white', borderRadius: 15, padding: 20, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
+  trackerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statusGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pulseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4CAF50' },
+  statusText: { color: '#4CAF50', fontWeight: 'bold', fontSize: 12 },
+  trackerBudget: { fontWeight: 'bold', fontSize: 16 },
+  trackerDesc: { color: '#666', marginVertical: 8, fontSize: 14, fontStyle: 'italic' },
+  trackerFooter: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingTop: 10, marginTop: 5 },
+  actionText: { color: Colors.primary, fontWeight: '700' },
+
+  section: { padding: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
+  grid: { flexDirection: 'row', justifyContent: 'space-between' },
+  catItem: { alignItems: 'center', gap: 8 },
+  iconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#e3f2fd', justifyContent: 'center', alignItems: 'center' },
+  catLabel: { fontSize: 12, fontWeight: '500' },
 })

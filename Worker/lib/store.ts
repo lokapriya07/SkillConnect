@@ -49,6 +49,7 @@ export interface Booking {
 interface AppState {
     isAuthenticated: boolean
     user: {
+        id: string
         phone: string
         name?: string
         email?: string

@@ -46,6 +46,16 @@ export interface Booking {
   }
 }
 
+// Added for TypeScript support of AI-matched workers
+export interface WorkerProfile {
+  _id: string;
+  name: string;
+  rating: number;
+  experience: number;
+  skills: string[];
+  image?: string;
+}
+
 interface AppState {
   isAuthenticated: boolean
   user: {
@@ -63,7 +73,9 @@ interface AppState {
   activeJob: {
     description: string;
     budget: string;
-    status: 'finding' | 'bidding' | 'scheduled' | 'tracking';
+    status: 'finding' | 'bidding' | 'scheduled' | 'tracking' | 'finding_workers';
+    matchedWorkers?: WorkerProfile[];
+    skillsRequired?: string[]; // Added matchedWorkers to the activeJob type
   } | null;
   setActiveJob: (job: any) => void;
   clearJob: () => void;
@@ -177,7 +189,7 @@ export const useAppStore = create<AppState>()(
         return state.cart.reduce((count, item) => count + item.quantity, 0)
       },
 
-      logout: () => set({ isAuthenticated: false, user: null, cart: [], currentLocation: null }),
+      logout: () => set({ isAuthenticated: false, user: null, cart: [], currentLocation: null, activeJob: null }),
     }),
     {
       name: "service-hub-storage",

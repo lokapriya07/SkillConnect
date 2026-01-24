@@ -8,7 +8,6 @@ const workSchema = new mongoose.Schema({
   address: String,
   city: String,
   state: String,
-  zip: String,
   hourlyRate: Number,
   minHours: Number,
   startTime: String,
@@ -23,7 +22,16 @@ const workSchema = new mongoose.Schema({
     default: 'not_submitted'
   },
   experience: Number,
-  aadhaarLastFour: String
+  aadhaarLastFour: String,
+
+  // 🔥 REQUIRED for location-based matching
+  location: {
+    type: { type: String, enum: ['Point'], default: 'Point' },
+    coordinates: { type: [Number], default: [0, 0] }
+  }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Work', workSchema);
+// 🔥 Geo index (VERY IMPORTANT)
+workSchema.index({ location: '2dsphere' });
+
+module.exports = mongoose.models.Work || mongoose.model('Work', workSchema);

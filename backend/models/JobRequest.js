@@ -1,13 +1,44 @@
 const mongoose = require('mongoose');
 
-const JobRequestSchema = new mongoose.Schema({
-    description: { type: String, required: true },
-    budget: { type: String, required: true },
-    imagePath: { type: String }, 
-    videoPath: { type: String }, 
-    audioPath: { type: String }, 
-    status: { type: String, default: "finding_workers" },
-    createdAt: { type: Date, default: Date.now }
-});
+const jobRequestSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
 
-module.exports = mongoose.model('JobRequest', JobRequestSchema);
+    description: String,
+    budget: Number,
+    skillsRequired: [String],
+
+    imagePath: String,
+    videoPath: String,
+    audioPath: String,
+
+    status: {
+      type: String,
+      default: 'finding_workers'
+    },
+
+    location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point'
+      },
+      coordinates: {
+        type: [Number],
+        required: true
+      }
+    }
+  },
+  { timestamps: true }
+);
+
+// ✅ REQUIRED
+jobRequestSchema.index({ location: '2dsphere' });
+
+module.exports =
+  mongoose.models.JobRequest ||
+  mongoose.model('JobRequest', jobRequestSchema);
