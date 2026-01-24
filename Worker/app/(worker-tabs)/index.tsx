@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
   primaryActionText: { color: "#fff", fontWeight: "700" },
   secondaryButton: {
     flex: 1,
-    backgroundColor: "#e5e7eb",
+    backgroundColor: "#7386ae",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 10,

@@ -452,6 +452,8 @@
 //   },
 //   cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: "bold" },
 // })
+
+
 import { Colors } from "@/constants/Colors"
 import { categories, getFeaturedServices, getPopularServices } from "@/lib/services-data"
 import { useAppStore } from "@/lib/store"
@@ -467,6 +469,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  ImageBackground, 
   TouchableOpacity,
   View,
 } from "react-native"
@@ -519,6 +522,16 @@ export const serviceImages: Record<string, string> = {
   "paint-1": "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400",
   "salon-1": "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400",
 }
+const categoryImages: Record<string, string> = {
+  cleaning: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=200",
+  plumbing: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?w=200",
+  electrical: "https://images.unsplash.com/photo-1621905476059-5f6e90de7816?w=200",
+  painting: "https://images.unsplash.com/photo-1562564055-71e051d33c19?w=200",
+  carpentry: "https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=200",
+  appliance: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=200",
+  pest: "https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=200",
+  salon: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=200",
+};
 
 export default function HomeScreen() {
   const router = useRouter()
@@ -565,7 +578,12 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      {/* Updated Header with Republic Day Background */}
+      <ImageBackground
+        source={{ uri: 'https://static.zoomnews.com/thumb/msid-107120950,width-1280,height-720,resizemode-75/107120950.jpg' }}
+        style={[styles.header, { height: 200 }]}
+        imageStyle={{ opacity: 0.7 }} // Makes text easier to read
+      >
         <TouchableOpacity
           style={styles.locationContainer}
           onPress={() => router.push("/location" as any)}
@@ -583,7 +601,7 @@ export default function HomeScreen() {
           <Ionicons name="search" size={20} color="rgba(255,255,255,0.7)" />
           <Text style={styles.searchText}>Search for '{BANNERS[activeIndex].searchHint}'</Text>
         </TouchableOpacity>
-      </View>
+      </ImageBackground>
 
       <ScrollView
         style={styles.content}
@@ -624,20 +642,17 @@ export default function HomeScreen() {
                 style={styles.categoryItem}
                 onPress={() => handleCategoryPress(category.id)}
               >
-                <View
-                  style={[styles.categoryIcon, { backgroundColor: `${category.color}15` }]}
-                >
-                  <Ionicons
-                    name={categoryIcons[category.id] || "grid"}
-                    size={24}
-                    color={category.color}
+                <View style={styles.categoryImageContainer}>
+                  <Image
+                    source={{ uri: categoryImages[category.id] || "https://via.placeholder.com/150" }}
+                    style={styles.categoryImg}
                   />
                 </View>
                 <Text style={styles.categoryName}>{category.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+          </View>
 
         {/* Carousel Banner Section */}
         <View style={styles.carouselSection}>
@@ -812,26 +827,10 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    backgroundColor: Colors.primary,
-    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 20 : 60,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    zIndex: 10,
-  },
   locationContainer: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   locationTextContainer: { marginLeft: 8 },
   locationLabel: { fontSize: 12, color: "rgba(255,255,255,0.8)" },
   locationValue: { fontSize: 14, fontWeight: "600", color: Colors.white, maxWidth: 250 },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    padding: 12,
-    borderRadius: 12,
-  },
   searchText: { marginLeft: 10, color: "rgba(255,255,255,0.9)", fontSize: 14 },
   content: { flex: 1 },
 
@@ -881,10 +880,10 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: "700", color: Colors.text },
   seeAllBtn: { flexDirection: "row", alignItems: "center" },
   seeAllText: { fontSize: 14, color: Colors.primary, fontWeight: "600", marginRight: 2 },
-  categoriesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  categoryItem: { width: "23%", alignItems: "center", marginBottom: 16 },
+  // categoriesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  // categoryItem: { width: "23%", alignItems: "center", marginBottom: 16 },
   categoryIcon: { width: 55, height: 55, borderRadius: 15, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  categoryName: { fontSize: 11, fontWeight: "600", color: Colors.text, textAlign: "center" },
+  // categoryName: { fontSize: 11, fontWeight: "600", color: Colors.text, textAlign: "center" },
   horizontalScroll: { paddingRight: 20 },
   featuredCard: { width: 160, backgroundColor: Colors.white, borderRadius: 16, marginRight: 12, borderWidth: 1, borderColor: Colors.border, overflow: "hidden" },
   featuredImageContainer: { height: 100, backgroundColor: "#f0f0f0", position: "relative" },
@@ -912,4 +911,57 @@ const styles = StyleSheet.create({
   navText: { fontSize: 10, marginTop: 4, color: Colors.textSecondary, fontWeight: "500" },
   cartBadge: { position: "absolute", top: -5, right: -8, backgroundColor: Colors.primary, borderRadius: 8, width: 16, height: 16, justifyContent: "center", alignItems: "center" },
   cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: "bold" },
+  header: {
+    backgroundColor: "#000", // Background color set to black
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 20 : 60,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    zIndex: 10,
+    overflow: 'hidden', // Required to keep image within rounded corners
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)", // Darker translucent background for search
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  categoriesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between"
+  },
+  categoryItem: {
+    width: "23%",
+    alignItems: "center",
+    marginBottom: 16
+  },
+  categoryImageContainer: {
+    width: 65,
+    height: 65,
+    borderRadius: 20, // More rounded for a modern look
+    overflow: "hidden", // Clips the image to the border radius
+    marginBottom: 8,
+    backgroundColor: '#F3F4F6',
+    elevation: 2, // Slight shadow for depth
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  categoryImg: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover"
+  },
+  categoryName: {
+    fontSize: 11,
+    fontWeight: "700", // Made slightly bolder for readability
+    color: Colors.text,
+    textAlign: "center"
+  },
 })
