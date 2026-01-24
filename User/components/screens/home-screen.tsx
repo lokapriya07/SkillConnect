@@ -452,6 +452,7 @@
 //   },
 //   cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: "bold" },
 // })
+//--------------------------------------------------------------
 import { Colors } from "@/constants/Colors"
 import { categories, getFeaturedServices, getPopularServices } from "@/lib/services-data"
 import { useAppStore } from "@/lib/store"
