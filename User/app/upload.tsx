@@ -403,6 +403,7 @@
 //     },
 //     submitBtnText: { color: 'white', fontSize: 18, fontWeight: '700' },
 // })
+
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"

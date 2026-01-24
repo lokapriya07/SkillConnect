@@ -453,6 +453,7 @@
 //   cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: "bold" },
 // })
 
+
 import { Colors } from "@/constants/Colors"
 import { categories, getFeaturedServices, getPopularServices } from "@/lib/services-data"
 import { useAppStore } from "@/lib/store"
@@ -490,26 +491,32 @@ const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 // CAROUSEL BANNERS (Matched to video)
 const BANNERS = [
-  { 
-    id: '1', 
-    image: 'https://images.unsplash.com/photo-1621333130274-017870a3d21e?w=800', 
-    title: 'Women Spa & Saloon', 
+  {
+    id: '1',
+    image: 'https://cdn.shopify.com/s/files/1/0026/4549/1812/files/shutterstock_1236164359_1024x1024.jpg?v=1614305641',
+    title: 'Republic Day Sale',
+    subtitle: 'Flat 50% Off on all Spa Services',
+    offer: 'UPTO 50% OFF',
     searchHint: 'Home Cleaning',
-    color: '#9b59b6'
+    color: '#FF9933' // Saffron for Republic Day
   },
-  { 
-    id: '2', 
-    image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800', 
-    title: 'Kitchen cleaning', 
+  {
+    id: '2',
+    image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800',
+    title: 'Kitchen Cleaning',
+    subtitle: 'Expert deep cleaning for your home',
+    offer: 'Starting @ ₹299',
     searchHint: 'Spa for Women',
-    color: '#f1c40f'
+    color: '#000080' // Navy Blue
   },
-  { 
-    id: '3', 
-    image: 'https://images.unsplash.com/photo-1521223344201-d169129f7b7d?w=800', 
-    title: 'Salon for men', 
+  {
+    id: '3',
+    image: 'https://images.unsplash.com/photo-1521223344201-d169129f7b7d?w=800',
+    title: 'Salon for Men',
+    subtitle: 'Top rated stylists at your doorstep',
+    offer: '20% OFF FIRST VISIT',
     searchHint: 'Bathroom Cleaning',
-    color: '#16a085'
+    color: '#128C7E' // Professional Teal
   },
 ];
 
@@ -521,16 +528,7 @@ export const serviceImages: Record<string, string> = {
   "paint-1": "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400",
   "salon-1": "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400",
 }
-const categoryImages: Record<string, string> = {
-  cleaning: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=200",
-  plumbing: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?w=200",
-  electrical: "https://images.unsplash.com/photo-1621905476059-5f6e90de7816?w=200",
-  painting: "https://images.unsplash.com/photo-1562564055-71e051d33c19?w=200",
-  carpentry: "https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=200",
-  appliance: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=200",
-  pest: "https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=200",
-  salon: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=200",
-};
+
 
 export default function HomeScreen() {
   const router = useRouter()
@@ -641,17 +639,20 @@ export default function HomeScreen() {
                 style={styles.categoryItem}
                 onPress={() => handleCategoryPress(category.id)}
               >
-                <View style={styles.categoryImageContainer}>
-                  <Image
-                    source={{ uri: categoryImages[category.id] || "https://via.placeholder.com/150" }}
-                    style={styles.categoryImg}
+                <View
+                  style={[styles.categoryIcon, { backgroundColor: `${category.color}15` }]}
+                >
+                  <Ionicons
+                    name={categoryIcons[category.id] || "grid"}
+                    size={24}
+                    color={category.color}
                   />
                 </View>
                 <Text style={styles.categoryName}>{category.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
-          </View>
+        </View>
 
         {/* Carousel Banner Section */}
         <View style={styles.carouselSection}>
@@ -663,21 +664,36 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={handleScroll}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.bannerWrapper}>
-                <View style={[styles.bannerCard, { backgroundColor: item.color }]}>
-                  <View style={styles.bannerContent}>
-                    <Text style={styles.bestLabel}>Best</Text>
-                    <Text style={styles.bannerTitle}>{item.title}</Text>
-                    <Text style={styles.bannerSubtitle}>Services near by you</Text>
-                    <TouchableOpacity style={styles.bookNowBtn}>
-                      <Text style={styles.bookNowText}>BOOK NOW</Text>
-                    </TouchableOpacity>
+            renderItem={({ item }) => {
+              // Logic to insert a newline after the 3rd word
+              const words = item.subtitle.split(' ');
+              const formattedSubtitle = words.length > 3
+                ? `${words.slice(0, 3).join(' ')}\n${words.slice(3).join(' ')}`
+                : item.subtitle;
+
+              return (
+                <View style={styles.bannerWrapper}>
+                  <View style={[styles.bannerCard, { backgroundColor: item.color }]}>
+                    <View style={styles.bannerContent}>
+                      <View style={styles.offerBadge}>
+                        <Text style={styles.offerBadgeText}>{item.offer}</Text>
+                      </View>
+                      <Text style={styles.bannerTitle}>{item.title}</Text>
+
+                      {/* Use the formattedSubtitle here */}
+                      <Text style={styles.bannerSubtitle}>{formattedSubtitle}</Text>
+
+                      <TouchableOpacity style={styles.bookNowBtn}>
+                        <Text style={styles.bookNowText}>BOOK NOW</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.imageBgCircle} />
+                    <Image source={{ uri: item.image }} style={styles.bannerImage} />
                   </View>
-                  <Image source={{ uri: item.image }} style={styles.bannerImage} />
                 </View>
-              </View>
-            )}
+              );
+            }}
           />
           {/* Pagination Indicators */}
           <View style={styles.pagination}>
@@ -832,26 +848,7 @@ const styles = StyleSheet.create({
   locationValue: { fontSize: 14, fontWeight: "600", color: Colors.white, maxWidth: 250 },
   searchText: { marginLeft: 10, color: "rgba(255,255,255,0.9)", fontSize: 14 },
   content: { flex: 1 },
-
-  // Carousel Styles
-  carouselSection: { marginVertical: 10 },
-  bannerWrapper: { width: width, paddingHorizontal: 20 },
-  bannerCard: { 
-    height: 160, 
-    borderRadius: 20, 
-    flexDirection: 'row', 
-    overflow: 'hidden',
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  bannerContent: { flex: 1, zIndex: 2 },
   bestLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '600' },
-  bannerTitle: { color: '#FFF', fontSize: 22, fontWeight: 'bold', marginVertical: 4 },
-  bannerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 12 },
-  bookNowBtn: { backgroundColor: '#000', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8, alignSelf: 'flex-start' },
-  bookNowText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
-  bannerImage: { width: 120, height: 120, resizeMode: 'contain', position: 'absolute', right: 10, bottom: 0 },
   pagination: { flexDirection: 'row', justifyContent: 'center', marginTop: 15 },
   dot: { height: 8, borderRadius: 4, marginHorizontal: 4 },
 
@@ -879,10 +876,10 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: "700", color: Colors.text },
   seeAllBtn: { flexDirection: "row", alignItems: "center" },
   seeAllText: { fontSize: 14, color: Colors.primary, fontWeight: "600", marginRight: 2 },
-  // categoriesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  // categoryItem: { width: "23%", alignItems: "center", marginBottom: 16 },
+  categoriesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  categoryItem: { width: "23%", alignItems: "center", marginBottom: 16 },
   categoryIcon: { width: 55, height: 55, borderRadius: 15, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  // categoryName: { fontSize: 11, fontWeight: "600", color: Colors.text, textAlign: "center" },
+  categoryName: { fontSize: 11, fontWeight: "600", color: Colors.text, textAlign: "center" },
   horizontalScroll: { paddingRight: 20 },
   featuredCard: { width: 160, backgroundColor: Colors.white, borderRadius: 16, marginRight: 12, borderWidth: 1, borderColor: Colors.border, overflow: "hidden" },
   featuredImageContainer: { height: 100, backgroundColor: "#f0f0f0", position: "relative" },
@@ -929,38 +926,62 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
   },
-  categoriesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between"
+  // Carousel Styles
+  carouselSection: { marginVertical: 0 },
+  bannerWrapper: { width: width, paddingHorizontal: 15 },
+  bannerCard: {
+    height: 180,
+    borderRadius: 24,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    padding: 20,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
-  categoryItem: {
-    width: "23%",
-    alignItems: "center",
-    marginBottom: 16
-  },
-  categoryImageContainer: {
-    width: 65,
-    height: 65,
-    borderRadius: 20, // More rounded for a modern look
-    overflow: "hidden", // Clips the image to the border radius
+  bannerContent: { flex: 1.2, zIndex: 5, justifyContent: 'center' },
+  offerBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
     marginBottom: 8,
-    backgroundColor: '#F3F4F6',
-    elevation: 2, // Slight shadow for depth
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
-  categoryImg: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover"
+  offerBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  bannerTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', marginBottom: 4 },
+  bannerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '500', marginBottom: 15 },
+  bookNowBtn: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignSelf: 'flex-start'
   },
-  categoryName: {
-    fontSize: 11,
-    fontWeight: "700", // Made slightly bolder for readability
-    color: Colors.text,
-    textAlign: "center"
+  bookNowText: { color: '#000', fontSize: 12, fontWeight: 'bold' },
+
+  // Floating Image Effect
+  bannerImage: {
+    width: 180,
+    height: 200,
+    resizeMode: 'cover',
+    // Makes it a circle like the video
+    position: 'absolute',
+    right: -10,
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.3)'
+  },
+  imageBgCircle: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    right: -40,
+    top: -20,
   },
 })
