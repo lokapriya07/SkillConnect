@@ -66,6 +66,7 @@
 // });
 
 // module.exports = router;
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -73,21 +74,17 @@ const fs = require('fs');
 
 const JobRequest = require('../models/JobRequest');
 const Work = require('../models/Work');
-const { extractSkillsFromDescription } = require('../utils/aiExtractor');
-
-// Ensure uploads folder exists
-if (!fs.existsSync('uploads')) {
-    fs.mkdirSync('uploads');
-}
+// ✅ Import the new multimodal function name
+const { extractSkillsFromMultimodal } = require('../utils/aiExtractor');
 
 const storage = multer.diskStorage({
     destination: 'uploads/',
-    filename: (req, file, cb) =>
-        cb(null, Date.now() + '-' + file.originalname)
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 
 const upload = multer({ storage });
 
+// --- 1. USER UPLOADS JOB ---
 router.post(
     '/upload',
     upload.fields([
@@ -99,62 +96,93 @@ router.post(
         try {
             const { description, budget, userId, latitude, longitude } = req.body;
 
-            if (!description || !latitude || !longitude) {
-                return res.status(400).json({ error: "Missing fields" });
+            if (!latitude || !longitude) {
+                return res.status(400).json({ error: "Location is required" });
             }
 
-            const skillsRequired =
-                await extractSkillsFromDescription(description);
+            // Get file paths
+            const imagePath = req.files?.image?.[0]?.path || null;
+            const audioPath = req.files?.audio?.[0]?.path || null;
+            const videoPath = req.files?.video?.[0]?.path || null;
+
+            // ✅ Call the new function name with ALL 3 inputs
+            const skillsRequired = await extractSkillsFromMultimodal(description, audioPath, imagePath);
 
             const job = await JobRequest.create({
-                description,
+                description: description || "Voice/Image Request",
                 budget,
                 skillsRequired,
                 userId,
                 location: {
                     type: 'Point',
-                    coordinates: [
-                        parseFloat(longitude),
-                        parseFloat(latitude)
-                    ]
+                    coordinates: [parseFloat(longitude), parseFloat(latitude)]
                 },
-                imagePath: req.files?.image?.[0]?.path || null,
-                videoPath: req.files?.video?.[0]?.path || null,
-                audioPath: req.files?.audio?.[0]?.path || null
+                imagePath,
+                videoPath,
+                audioPath
             });
-
-            const matchedWorkers = await Work.find({
-                skills: { $in: skillsRequired },
-                isAvailable: true,
-                userId: { $ne: userId },
-                location: {
-                    $near: {
-                        $geometry: {
-                            type: 'Point',
-                            coordinates: [
-                                parseFloat(longitude),
-                                parseFloat(latitude)
-                            ]
-                        },
-                        $maxDistance: 10000
-                    }
-                }
-            })
-                .sort({ experience: -1 })
-                .limit(10);
 
             res.status(201).json({
                 success: true,
                 job,
-                matchedWorkers,
                 aiSkills: skillsRequired
             });
 
         } catch (error) {
-            console.error("❌ Job Error:", error);
-            res.status(500).json({ error: "Job failed" });
+            console.error("❌ Job Upload Error:", error);
+            res.status(500).json({ error: "Failed to post job" });
         }
     }
 );
+
+// --- 2. WORKER FEED (SHOW JOBS ON HOME SCREEN) ---
+router.get('/worker-feed/:workerId', async (req, res) => {
+    try {
+        const { workerId } = req.params;
+
+        // Find worker to get their skills and location
+        const worker = await Work.findOne({ userId: workerId });
+
+        if (!worker) {
+            return res.status(404).json({ message: "Worker profile not found" });
+        }
+
+        // Match jobs based on skill tags and 10km radius
+        const jobs = await JobRequest.find({
+            status: 'finding_workers',
+            skillsRequired: { $in: worker.skills }, // Math: Skill match
+            userId: { $ne: workerId }, // Don't show own jobs
+            location: {
+                $near: {
+                    $geometry: {
+                        type: 'Point',
+                        coordinates: worker.location.coordinates // [lng, lat]
+                    },
+                    $maxDistance: 10000 // 10km
+                }
+            }
+        }).sort({ createdAt: -1 });
+
+        res.status(200).json(jobs);
+    } catch (error) {
+        console.error("❌ Worker Feed Error:", error);
+        res.status(500).json({ error: "Failed to fetch jobs" });
+    }
+});
+router.get('/all-jobs', async (req, res) => {
+    try {
+        // Fetches every job in the database, newest first
+        const jobs = await JobRequest.find().sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: jobs.length,
+            jobs
+        });
+    } catch (error) {
+        console.error("❌ Fetch All Jobs Error:", error);
+        res.status(500).json({ error: "Failed to fetch all jobs" });
+    }
+});
 
 module.exports = router;

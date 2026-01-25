@@ -417,14 +417,20 @@ export default function DashboardScreen() {
   }, []);
 
   // --- FETCH JOBS FROM BACKEND ---
+  // Inside DashboardScreen.tsX
+
   const fetchMatchedJobs = async (workerId: string) => {
     try {
       setLoadingJobs(true);
+      // Note: Ensure your .env has the correct API URL
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker-feed/${workerId}`);
-      const data = await response.json();
-      setMatchedJobs(data);
+
+      if (response.ok) {
+        const data = await response.json();
+        setMatchedJobs(data); // These jobs are now filtered by SKILL and LOCATION
+      }
     } catch (error) {
-      console.error("Error fetching jobs:", error);
+      console.error("Fetch error:", error);
     } finally {
       setLoadingJobs(false);
     }

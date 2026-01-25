@@ -59,9 +59,12 @@ export interface WorkerProfile {
 interface AppState {
   isAuthenticated: boolean
   user: {
+    id: string; 
+    _id?: string;
     phone: string
     name?: string
     email?: string
+    role?:string
   } | null
   currentLocation: {
     address: string

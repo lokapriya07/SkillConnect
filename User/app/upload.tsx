@@ -909,7 +909,7 @@ export default function CreateRequestScreen() {
     const [budget, setBudget] = useState("")
     const [loading, setLoading] = useState(false)
     const [sound, setSound] = useState<Audio.Sound | null>(null)
-
+    const user = useAppStore((state) => state.user);
     // ✅ Use the correct keys from your Zustand store
     const { setActiveJob, currentLocation } = useAppStore()
 
@@ -1013,69 +1013,91 @@ export default function CreateRequestScreen() {
     }
 
     // ✅ UPDATED SUBMIT LOGIC (NO CHANGES TO UI)
+    // CreateRequestScreen.tsx
+
     const handleSubmit = async () => {
-        if (!description.trim() || !budget.trim()) {
-            Alert.alert("Missing Info", "Please add description and budget.")
-            return
+        // 📍 Validation: Handle media/description
+        const hasMedia = imageUri || audioUri || videoUri;
+        if (!description.trim() && !hasMedia) {
+            Alert.alert("Missing Info", "Please describe the problem or record a voice note.");
+            return;
         }
 
-        // 📍 Extract coords from your specific Store structure
+        if (!budget.trim()) {
+            Alert.alert("Missing Info", "Please add a budget.");
+            return;
+        }
+
+        // 📍 Extract Coordinates
         const lat = currentLocation?.coordinates?.lat;
         const lng = currentLocation?.coordinates?.lng;
 
-        // 🛑 Block if coordinates are missing (prevents backend NaN error)
         if (lat === undefined || lng === undefined) {
-            Alert.alert("Location Not Set", "Please ensure your location is detected on the home screen first.")
-            return
+            Alert.alert("Location Not Set", "Please set your location on the home screen first.");
+            return;
         }
 
-        setLoading(true)
+        // 🛑 userId Fix: Try both ID formats
+        const userId = user?._id || user?.id;
+
+        if (!userId) {
+            console.log("Current User Store State:", user); // Debugging
+            Alert.alert("Error", "User session not found. Please log in again.");
+            return;
+        }
+
+        setLoading(true);
 
         try {
-            const formData = new FormData()
-            formData.append("description", description.trim())
-            formData.append("budget", budget.trim())
-
-            // ✅ Pass coords to backend
-            formData.append("longitude", String(lng))
-            formData.append("latitude", String(lat))
+            const formData = new FormData();
+            formData.append("userId", userId);
+            formData.append("description", description.trim() || "Multimodal Request");
+            formData.append("budget", budget.trim());
+            formData.append("longitude", String(lng));
+            formData.append("latitude", String(lat));
 
             const appendFile = (uri: string | null, fieldName: string) => {
                 if (uri) {
-                    const filename = uri.split('/').pop() || "upload"
-                    const type = fieldName === 'image' ? 'image/jpeg' : fieldName === 'video' ? 'video/mp4' : 'audio/m4a'
-                    // @ts-ignore
-                    formData.append(fieldName, { uri: uri, name: filename, type: type })
-                }
-            }
+                    const filename = uri.split('/').pop() || "upload";
+                    const match = /\.(\w+)$/.exec(filename);
+                    const ext = match ? match[1] : (fieldName === 'image' ? 'jpg' : fieldName === 'video' ? 'mp4' : 'm4a');
+                    const type = fieldName === 'image' ? `image/${ext}` : fieldName === 'video' ? `video/${ext}` : `audio/${ext}`;
 
-            appendFile(imageUri, "image")
-            appendFile(videoUri, "video")
-            appendFile(audioUri, "audio")
+                    // @ts-ignore
+                    formData.append(fieldName, { uri: uri, name: filename, type: type });
+                }
+            };
+
+            appendFile(imageUri, "image");
+            appendFile(audioUri, "audio");
+            appendFile(videoUri, "video"); // Don't forget the video!
 
             const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/upload`, {
                 method: "POST",
                 body: formData,
-                headers: { "Content-Type": "multipart/form-data" },
-            })
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "multipart/form-data"
+                },
+            });
 
-            const result = await response.json()
+            const result = await response.json();
 
             if (response.ok) {
-                setActiveJob({ ...result.job, status: "finding_workers" })
-                Alert.alert("Success!", "Job posted to nearby workers!", [
+                setActiveJob({ ...result.job, status: "finding_workers" });
+                Alert.alert("Success!", "Job posted successfully!", [
                     { text: "OK", onPress: () => router.replace("/(tabs)/" as any) }
-                ])
+                ]);
             } else {
-                Alert.alert("Error", result.error || "Failed to post request")
+                Alert.alert("Upload Failed", result.error || "Server error");
             }
         } catch (error) {
-            console.error("Submission error:", error)
-            Alert.alert("Connection Error", "Could not reach backend.")
+            console.error("Upload error:", error);
+            Alert.alert("Connection Error", "Check your internet or server status.");
         } finally {
-            setLoading(false)
+            setLoading(false);
         }
-    }
+    };
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>

@@ -216,6 +216,7 @@
 //   footerText: { color: colors.mutedText, fontSize: 15 },
 //   signupText: { color: colors.primaryBlue, fontWeight: "bold", fontSize: 15 },
 // });
+
 import { useAppStore } from "@/lib/store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -296,6 +297,8 @@ export default function Login() {
         // 3. Success: Update Global State
         setAuthenticated(true);
         setUser({
+          id: data.user._id || data.user.id, // Ensure ID is captured
+          _id: data.user._id || data.user.id,
           name: data.user.name,
           email: data.user.email,
           phone: data.user.phone || "",
