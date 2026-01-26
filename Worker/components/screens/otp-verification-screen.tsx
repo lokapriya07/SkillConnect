@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Alert } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Colors } from "@/constants/Colors"
-import { Button } from "@/components/ui/Button"
+import { Button } from "@/components/ui/button"
 
 interface OtpVerificationScreenProps {
   phone: string // Expects format "+91XXXXXXXXXX"
