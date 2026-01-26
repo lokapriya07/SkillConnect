@@ -212,5 +212,20 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ msg: "Server error during login" });
   }
 });
+router.get('/workers', async (req, res) => {
+  try {
+    // We select '-password' to ensure the hashed password is never sent to the client
+    const workers = await User.find({ role: 'worker' }).select('-password');
+
+    res.json({
+      success: true,
+      count: workers.length,
+      workers
+    });
+  } catch (err) {
+    console.error("❌ Error fetching workers:", err);
+    res.status(500).json({ msg: "Server error fetching workers" });
+  }
+});
 
 module.exports = router;

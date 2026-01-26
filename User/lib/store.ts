@@ -2,7 +2,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
-
 export interface Service {
   id: string
   name: string
@@ -46,7 +45,6 @@ export interface Booking {
   }
 }
 
-// Added for TypeScript support of AI-matched workers
 export interface WorkerProfile {
   _id: string;
   name: string;
@@ -56,15 +54,25 @@ export interface WorkerProfile {
   image?: string;
 }
 
+// Updated Job Interface with unique ID
+export interface ActiveJob {
+  id: string;
+  description: string;
+  budget: string;
+  status: 'finding' | 'bidding' | 'scheduled' | 'tracking' | 'finding_workers';
+  matchedWorkers?: WorkerProfile[];
+  skillsRequired?: string[];
+}
+
 interface AppState {
   isAuthenticated: boolean
   user: {
-    id: string; 
+    id: string;
     _id?: string;
     phone: string
     name?: string
     email?: string
-    role?:string
+    role?: string
   } | null
   currentLocation: {
     address: string
@@ -73,17 +81,12 @@ interface AppState {
   savedAddresses: Address[]
   cart: CartItem[]
   bookings: Booking[]
-  activeJob: {
-    description: string;
-    budget: string;
-    status: 'finding' | 'bidding' | 'scheduled' | 'tracking' | 'finding_workers';
-    matchedWorkers?: WorkerProfile[];
-    skillsRequired?: string[]; // Added matchedWorkers to the activeJob type
-  } | null;
-  setActiveJob: (job: any) => void;
-  clearJob: () => void;
+  activeJobs: ActiveJob[]; // Changed to Array
 
   // Actions
+  addActiveJob: (job: ActiveJob) => void; // Changed to add to array
+  removeJob: (id: string) => void;
+  clearJobs: () => void;
   setAuthenticated: (auth: boolean) => void
   setUser: (user: AppState["user"]) => void
   setCurrentLocation: (location: AppState["currentLocation"]) => void
@@ -94,10 +97,8 @@ interface AppState {
   addAddress: (address: Address) => void
   addBooking: (booking: Booking) => void
   updateUser: (newData: Partial<NonNullable<AppState["user"]>>) => void;
-  // NEW ACTIONS: Update and Cancel
   updateBooking: (id: string, updates: Partial<Booking>) => void
   cancelBooking: (id: string) => void
-
   getCartTotal: () => number
   getCartCount: () => number
   logout: () => void
@@ -112,9 +113,18 @@ export const useAppStore = create<AppState>()(
       savedAddresses: [],
       cart: [],
       bookings: [],
-      activeJob: null, // Initial state is null
-      setActiveJob: (job) => set({ activeJob: job }),
-      clearJob: () => set({ activeJob: null }),
+      activeJobs: [], // Initial state is empty array
+
+      // Fixed: Appends new job to the list
+      addActiveJob: (job) => set((state) => ({
+        activeJobs: [job, ...state.activeJobs]
+      })),
+
+      removeJob: (id) => set((state) => ({
+        activeJobs: state.activeJobs.filter(j => j.id !== id)
+      })),
+
+      clearJobs: () => set({ activeJobs: [] }),
 
       setAuthenticated: (auth) => set({ isAuthenticated: auth }),
       setUser: (user) => set({ user }),
@@ -139,6 +149,7 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           cart: state.cart.filter((item) => item.service.id !== serviceId),
         })),
+
       updateUser: (newData) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...newData } : null
@@ -166,7 +177,6 @@ export const useAppStore = create<AppState>()(
           bookings: [booking, ...state.bookings],
         })),
 
-      // IMPLEMENTATION: Update a booking (used for Rescheduling)
       updateBooking: (id, updates) =>
         set((state) => ({
           bookings: state.bookings.map((booking) =>
@@ -174,7 +184,6 @@ export const useAppStore = create<AppState>()(
           ),
         })),
 
-      // IMPLEMENTATION: Cancel a booking
       cancelBooking: (id) =>
         set((state) => ({
           bookings: state.bookings.map((booking) =>
@@ -192,7 +201,14 @@ export const useAppStore = create<AppState>()(
         return state.cart.reduce((count, item) => count + item.quantity, 0)
       },
 
-      logout: () => set({ isAuthenticated: false, user: null, cart: [], currentLocation: null, activeJob: null }),
+      // If you want jobs to persist after logout, remove "activeJobs: []" from here
+      logout: () => set({
+        isAuthenticated: false,
+        user: null,
+        cart: [],
+        currentLocation: null,
+        activeJobs: []
+      }),
     }),
     {
       name: "service-hub-storage",

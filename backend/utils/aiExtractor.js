@@ -44,6 +44,12 @@ const extractSkillsFromMultimodal = async (text, audioPath, imagePath) => {
 
     const prompt = `
     You are a professional job-matching assistant for a home services app.
+    Analyze this job request:
+  Description: ${text}
+  
+  Based on the description and provided media, return an array of 2-3 specific skill tags 
+  (e.g., ["Electronics Repair", "Laptop Technician"] instead of just ["General"]).
+  Return ONLY a JSON array of strings.
     
     INPUT DATA:
     - User Text: "${text || "None provided"}"
@@ -56,8 +62,7 @@ const extractSkillsFromMultimodal = async (text, audioPath, imagePath) => {
     1. Look at the image to identify the broken object or service needed.
     2. Listen to the audio. The user may speak in ANY language (Hindi, Telugu, Tamil, etc.). Translate the intent to find the service required.
     3. If the user is uneducated and provided no text, rely 100% on the Image and Audio.
-    4. Return ONLY a JSON array of strings from the "AVAILABLE SKILLS" list.
-    5. If no match is found, return ["general_handyman"].
+   
 
     OUTPUT FORMAT:
     ["skill1", "skill2"]

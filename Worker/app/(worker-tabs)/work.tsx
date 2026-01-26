@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
     View,
     Text,
@@ -28,43 +28,62 @@ export default function WorkerJobDetails() {
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
 
-    // Initial Fetch
+    // Helper to fix Windows file paths from backend
+    const getFullUrl = (path: string) => {
+        if (!path) return null;
+        const normalizedPath = path.replace(/\\/g, '/');
+        return `${process.env.EXPO_PUBLIC_API_URL}/${normalizedPath}`;
+    };
+
     useEffect(() => {
-        fetchJobDetails();
+        if (jobId) {
+            fetchJobDetails();
+        }
         return () => {
             if (sound) {
                 sound.unloadAsync();
             }
         };
-    }, []);
+    }, [jobId]); // Added jobId dependency
 
     const fetchJobDetails = async () => {
         try {
-            const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/details/${jobId}`);
-            const data = await response.json();
-            setJob(data);
-            if (data.budget) setBidAmount(data.budget.toString());
+            const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/all-jobs`);
+            const result = await response.json();
+
+            // Find the specific job that matches the jobId from the URL
+            const foundJob = result.jobs.find((j: any) => j._id === jobId);
+
+            if (foundJob) {
+                setJob(foundJob);
+                if (foundJob.budget) setBidAmount(foundJob.budget.toString());
+            } else {
+                Alert.alert("Error", "Job not found.");
+            }
         } catch (error) {
+            console.error(error);
             Alert.alert("Error", "Could not load job details.");
         } finally {
             setLoading(false);
         }
     };
 
-    // Expo Video Player Setup (Correct for Expo 54)
-    const videoUri = job?.videoPath ? `${process.env.EXPO_PUBLIC_API_URL}/${job.videoPath}` : null;
+    // Correctly initialize Video Player only when job data exists
+    const videoUri = useMemo(() => getFullUrl(job?.videoPath), [job?.videoPath]);
     const player = useVideoPlayer(videoUri, (p) => {
         p.loop = true;
     });
 
     const playAudio = async () => {
-        if (!job?.audioPath) return;
+        const audioUrl = getFullUrl(job?.audioPath);
+        if (!audioUrl) return;
+
         try {
             if (sound) {
                 await sound.replayAsync();
             } else {
                 const { sound: newSound } = await Audio.Sound.createAsync(
-                    { uri: `${process.env.EXPO_PUBLIC_API_URL}/${job.audioPath}` },
+                    { uri: audioUrl },
                     { shouldPlay: true }
                 );
                 setSound(newSound);
@@ -81,7 +100,7 @@ export default function WorkerJobDetails() {
     const submitBid = async () => {
         if (!bidAmount) return Alert.alert("Wait", "Please enter a bid amount.");
 
-        // Logic to POST bid to backend would go here
+        // logic for backend POST here
         Alert.alert("Success", "Your bid has been sent to the user!", [
             { text: "OK", onPress: () => router.back() }
         ]);
@@ -90,7 +109,7 @@ export default function WorkerJobDetails() {
     if (loading) {
         return (
             <View style={styles.loadingCenter}>
-                <ActivityIndicator size="large" color={Colors.primary} />
+                <ActivityIndicator size="large" color={Colors.primary || "#007AFF"} />
             </View>
         );
     }
@@ -104,7 +123,7 @@ export default function WorkerJobDetails() {
                 {/* Image Preview */}
                 {job?.imagePath && (
                     <Image
-                        source={{ uri: `${process.env.EXPO_PUBLIC_API_URL}/${job.imagePath}` }}
+                        source={{ uri: getFullUrl(job.imagePath) as string }}
                         style={styles.mainImage}
                         resizeMode="cover"
                     />
@@ -113,7 +132,6 @@ export default function WorkerJobDetails() {
                 <View style={styles.content}>
                     <Text style={styles.title}>Job Details</Text>
 
-                    {/* AI Skills Required */}
                     <View style={styles.tagRow}>
                         {job?.skillsRequired?.map((skill: string) => (
                             <View key={skill} style={styles.skillBadge}>
@@ -183,7 +201,7 @@ const styles = StyleSheet.create({
     description: { fontSize: 16, color: '#444', lineHeight: 24, marginBottom: 20 },
     mediaRow: { marginBottom: 20 },
     audioBtn: {
-        backgroundColor: "#007AFF", // Using a fallback if Colors.primary isn't set
+        backgroundColor: "#007AFF",
         flexDirection: 'row',
         alignItems: 'center',
         padding: 15,

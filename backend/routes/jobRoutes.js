@@ -140,25 +140,26 @@ router.get('/worker-feed/:workerId', async (req, res) => {
     try {
         const { workerId } = req.params;
 
-        // Find worker to get their skills and location
         const worker = await Work.findOne({ userId: workerId });
-
         if (!worker) {
             return res.status(404).json({ message: "Worker profile not found" });
         }
 
-        // Match jobs based on skill tags and 10km radius
+        // Logic: Match specific skills OR show general jobs to everyone
         const jobs = await JobRequest.find({
             status: 'finding_workers',
-            skillsRequired: { $in: worker.skills }, // Math: Skill match
-            userId: { $ne: workerId }, // Don't show own jobs
+            userId: { $ne: workerId },
+            $or: [
+                { skillsRequired: { $in: worker.skills } }, // Exact matches
+                { skillsRequired: "general_handyman" }      // Fallback for everyone
+            ],
             location: {
                 $near: {
                     $geometry: {
                         type: 'Point',
-                        coordinates: worker.location.coordinates // [lng, lat]
+                        coordinates: worker.location.coordinates
                     },
-                    $maxDistance: 10000 // 10km
+                    $maxDistance: 15000 // Increased to 15km for better reach
                 }
             }
         }).sort({ createdAt: -1 });
@@ -169,6 +170,7 @@ router.get('/worker-feed/:workerId', async (req, res) => {
         res.status(500).json({ error: "Failed to fetch jobs" });
     }
 });
+
 router.get('/all-jobs', async (req, res) => {
     try {
         // Fetches every job in the database, newest first

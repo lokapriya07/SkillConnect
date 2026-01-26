@@ -532,7 +532,7 @@ export const serviceImages: Record<string, string> = {
 
 export default function HomeScreen() {
   const router = useRouter()
-  const { currentLocation, getCartCount, activeJob } = useAppStore()
+  const { currentLocation, getCartCount, activeJobs } = useAppStore()
 
   // Carousel Logic
   const [activeIndex, setActiveIndex] = useState(0)
@@ -606,31 +606,34 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Active Request Tracker */}
-        {activeJob && (
-          <View style={styles.trackerContainer}>
+        {/* Change activeJob to activeJobs.map */}
+        {activeJobs && activeJobs.length > 0 && activeJobs.map((job) => (
+          <View key={job.id} style={styles.trackerContainer}>
             <TouchableOpacity
               style={styles.trackerCard}
-              onPress={() => router.push("/worker-bids")}
+              onPress={() => router.push({ pathname: "/worker-bids", params: { jobId: job.id } })}
             >
               <View style={styles.trackerHeader}>
                 <View style={styles.statusGroup}>
                   <View style={styles.pulseDot} />
                   <Text style={styles.statusText}>AI Matching In Progress...</Text>
                 </View>
-                <Text style={styles.trackerBudget}>₹{activeJob.budget}</Text>
+                <Text style={styles.trackerBudget}>₹{job.budget}</Text>
               </View>
 
               <Text style={styles.trackerDesc} numberOfLines={1}>
-                Matching: "{activeJob.description}"
+                Matching: "{job.description}"
               </Text>
 
               <View style={styles.trackerFooter}>
-                <Text style={styles.actionText}>View Ranked Workers ({activeJob.matchedWorkers?.length || 0})</Text>
+                <Text style={styles.actionText}>
+                  View Ranked Workers ({job.matchedWorkers?.length || 0})
+                </Text>
                 <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
               </View>
             </TouchableOpacity>
           </View>
-        )}
+        ))}
 
         {/* Categories Grid */}
         <View style={styles.section}>
