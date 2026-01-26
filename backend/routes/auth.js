@@ -152,10 +152,14 @@
 // });
 
 // module.exports = router;
+
+
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
+require('dotenv').config();
+
 
 // --- SIGNUP ---
 router.post('/signup', async (req, res) => {
@@ -227,5 +231,6 @@ router.get('/workers', async (req, res) => {
     res.status(500).json({ msg: "Server error fetching workers" });
   }
 });
+
 
 module.exports = router;

@@ -17,31 +17,45 @@ export default function PhoneAuthScreen({ onSubmit, onSkip }: any) {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 🔥 REAL OTP SEND LOGIC (Twilio backend)
   const handleSendOtp = async () => {
     if (phone.length !== 10) {
       Alert.alert("Error", "Enter a 10-digit number");
       return;
     }
 
-    setLoading(true);
+    const fullPhone = `+91${phone}`;
 
-    // --- MOCK BACKEND LOGIC ---
-    // We use a timeout to simulate the time it takes for a server to respond
-    setTimeout(() => {
+    try {
+      setLoading(true);
+
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/otp/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: fullPhone,
+        }),
+      });
+
+      const data = await response.json();
+
       setLoading(false);
-      const fullPhone = `+91${phone}`;
-      
-      // In a real app, the server would send the SMS here.
-      // For now, we just pretend it worked.
-      Alert.alert(
-        "Demo Mode", 
-        "OTP sent to " + fullPhone + " (Use 123456 as the code)"
-      );
 
-      // Move to the next screen (OTP Input)
-      onSubmit(fullPhone); 
-    }, 1500); 
-    // --- END MOCK LOGIC ---
+      if (data.success) {
+        Alert.alert("Success", "OTP sent to " + fullPhone);
+
+        // move to OTP screen
+        onSubmit(fullPhone);
+      } else {
+        Alert.alert("Error", data.error || "Failed to send OTP");
+      }
+
+    } catch (err) {
+      setLoading(false);
+      Alert.alert("Network Error", "Server not reachable");
+    }
   };
 
   return (
@@ -98,6 +112,7 @@ export default function PhoneAuthScreen({ onSubmit, onSkip }: any) {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF" },

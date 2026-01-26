@@ -43,6 +43,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const bodyParser = require("body-parser");
+const twilio = require("twilio");
 require('dotenv').config();
 
 const app = express();
@@ -50,6 +52,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cors());
+app.use(bodyParser.json());
 
 // 1. ENSURE UPLOADS FOLDER EXISTS
 // This folder stores images, videos, and audio notes for AI processing
@@ -75,12 +78,15 @@ app.use('/api/jobs', require('./routes/jobRoutes'));
 
 // Work Routes handle worker profiles and skill management
 app.use('/api/work', require('./routes/workRoutes'));
+app.use('/api/otp', require('./routes/otp'));
 
 // 5. ERROR HANDLING MIDDLEWARE
 app.use((err, req, res, next) => {
     console.error("❌ Global Server Error:", err.stack);
     res.status(500).json({ error: "Internal Server Error" });
 });
+
+
 
 const PORT = process.env.PORT || 5000;
 // Use '0.0.0.0' to ensure your Expo app can connect over local Wi-Fi

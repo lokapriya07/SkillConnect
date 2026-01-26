@@ -1,23 +1,25 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput } from "react-native"
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Alert } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import {Colors}  from "@/constants/Colors"
+import { Colors } from "@/constants/Colors"
 import { Button } from "@/components/ui/Button"
 
 interface OtpVerificationScreenProps {
-  phone: string
-  onVerify: (otp: string) => void
+  phone: string // Expects format "+91XXXXXXXXXX"
+  onVerify: () => void
   onBack: () => void
-  onResend: () => void
+  onResend?: () => void
 }
 
-export default function OtpVerificationScreen({ phone, onVerify, onBack, onResend }: OtpVerificationScreenProps) {
+export default function OtpVerificationScreen({ phone, onVerify, onBack }: OtpVerificationScreenProps) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""])
   const [timer, setTimer] = useState(30)
   const [canResend, setCanResend] = useState(false)
-  const inputRefs = useRef<(TextInput | null)[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const inputRefs = useRef<Array<TextInput | null>>([])
 
   useEffect(() => {
     if (timer > 0) {
@@ -30,18 +32,13 @@ export default function OtpVerificationScreen({ phone, onVerify, onBack, onResen
 
   const handleOtpChange = (value: string, index: number) => {
     if (value.length > 1) {
-      // Handle paste
-      const digits = value
-        .replace(/[^0-9]/g, "")
-        .split("")
-        .slice(0, 6)
+      const digits = value.replace(/[^0-9]/g, "").split("").slice(0, 6)
       const newOtp = [...otp]
       digits.forEach((digit, i) => {
         if (index + i < 6) newOtp[index + i] = digit
       })
       setOtp(newOtp)
-      const lastIndex = Math.min(index + digits.length, 5)
-      inputRefs.current[lastIndex]?.focus()
+      inputRefs.current[Math.min(index + digits.length, 5)]?.focus()
       return
     }
 
@@ -60,16 +57,57 @@ export default function OtpVerificationScreen({ phone, onVerify, onBack, onResen
     }
   }
 
-  const handleResend = () => {
-    setTimer(30)
-    setCanResend(false)
-    onResend()
+  // 🔥 FIXED: Uses correct API path and phone prop
+  const handleResend = async () => {
+    try {
+      setTimer(30)
+      setCanResend(false)
+
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/otp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone }),
+      })
+
+      const data = await response.json();
+      if (data.success) {
+        Alert.alert("OTP Sent", "New OTP sent to " + phone)
+      } else {
+        Alert.alert("Error", data.error || "Failed to resend")
+      }
+    } catch {
+      Alert.alert("Error", "Failed to resend OTP")
+    }
   }
 
-  const handleVerify = () => {
+  // 🔥 FIXED: Ensures phone is sent exactly as received in props
+  const handleVerify = async () => {
     const code = otp.join("")
-    if (code.length === 6) {
-      onVerify(code)
+    if (code.length !== 6) return
+
+    try {
+      setLoading(true)
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phone, // This must include the +91
+          otp: code,
+        }),
+      })
+
+      const data = await res.json()
+      setLoading(false)
+
+      if (data.success) {
+        Alert.alert("Success", "Phone verified successfully ✅")
+        onVerify()
+      } else {
+        Alert.alert("Invalid OTP", data.message || "Please try again")
+      }
+    } catch (err) {
+      setLoading(false)
+      Alert.alert("Server Error", "Could not verify OTP")
     }
   }
 
@@ -78,52 +116,44 @@ export default function OtpVerificationScreen({ phone, onVerify, onBack, onResen
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.gray[900]} />
+            <Ionicons name="arrow-back" size={24} color="#000" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Verify Phone</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        {/* Icon */}
         <View style={styles.iconContainer}>
           <View style={styles.iconCircle}>
-            <Ionicons name="mail-outline" size={48} color={Colors.primary} />
+            <Ionicons name="mail-outline" size={48} color="#0066CC" />
           </View>
         </View>
 
-        {/* Title */}
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Enter verification code</Text>
           <Text style={styles.subtitle}>
             We have sent a 6-digit code to{"\n"}
-            <Text style={styles.phoneNumber}>+91 {phone}</Text>
+            {/* 🔥 NO MORE HARDCODED NUMBER */}
+            <Text style={styles.phoneNumber}>{phone}</Text>
           </Text>
         </View>
 
-        {/* OTP Input */}
         <View style={styles.otpContainer}>
           {otp.map((digit, index) => (
             <TextInput
               key={index}
-              ref={(ref: TextInput | null) => {
-                  inputRefs.current[index] = ref
-              }}
-
+              ref={(ref) => { inputRefs.current[index] = ref }}
               style={[styles.otpInput, digit && styles.otpInputFilled]}
               value={digit}
               onChangeText={(value) => handleOtpChange(value, index)}
               onKeyPress={(e) => handleKeyPress(e, index)}
               keyboardType="number-pad"
               maxLength={1}
-              selectTextOnFocus
             />
           ))}
         </View>
 
-        {/* Resend */}
         <View style={styles.resendContainer}>
           {canResend ? (
             <TouchableOpacity onPress={handleResend}>
@@ -136,8 +166,11 @@ export default function OtpVerificationScreen({ phone, onVerify, onBack, onResen
           )}
         </View>
 
-        {/* Verify Button */}
-        <Button title="Verify" onPress={handleVerify} fullWidth disabled={!isComplete} size="lg" />
+        <Button
+          title={loading ? "Verifying..." : "Verify"}
+          onPress={handleVerify}
+          disabled={!isComplete || loading}
+        />
       </View>
     </SafeAreaView>
   )

@@ -911,7 +911,7 @@ export default function CreateRequestScreen() {
     const [sound, setSound] = useState<Audio.Sound | null>(null)
     const user = useAppStore((state) => state.user);
     // ✅ Use the correct keys from your Zustand store
-    const { setActiveJob, currentLocation } = useAppStore()
+    const { addActiveJob, currentLocation } = useAppStore()
 
     // 🔧 RECORDING MANAGER
     const recordingRef = useRef<Audio.Recording | null>(null)
@@ -1084,7 +1084,7 @@ export default function CreateRequestScreen() {
             const result = await response.json();
 
             if (response.ok) {
-                setActiveJob({ ...result.job, status: "finding_workers" });
+                addActiveJob({ ...result.job, status: "finding_workers" });
                 Alert.alert("Success!", "Job posted successfully!", [
                     { text: "OK", onPress: () => router.replace("/(tabs)/" as any) }
                 ]);
