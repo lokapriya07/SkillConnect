@@ -162,9 +162,15 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings }: 
                             </View>
                             <Text style={styles.professionalExp}>5 years experience</Text>
                         </View>
-                        <TouchableOpacity style={styles.callButton}>
-                            <Ionicons name="call" size={20} color={Colors.white} />
-                        </TouchableOpacity>
+                        <View style={styles.buttonGroup}>
+                            <TouchableOpacity style={styles.callButton}>
+                                <Ionicons name="call" size={20} color={Colors.white} />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.chatButton}>
+                                <Ionicons name="chatbubble-ellipses" size={20} color={Colors.white} />
+                            </TouchableOpacity>
+                        </View>
+
                     </View>
                 </Animated.View>
 
@@ -436,4 +442,18 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: Colors.white,
     },
+    actionButtons: {
+        flexDirection: "row",
+        gap: 12,
+    },
+    chatButton: {
+        backgroundColor: "#3498db",
+        padding: 10,
+        borderRadius: 50,
+    },
+    buttonGroup: {
+        flexDirection: "row",
+        gap: 12, // 12px space between call and chat
+    },
+
 })

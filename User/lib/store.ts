@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
+
 export interface Service {
   id: string
   name: string
@@ -30,6 +31,7 @@ export interface Address {
   isDefault: boolean
 }
 
+
 export interface Booking {
   id: string
   items: CartItem[]
@@ -38,12 +40,14 @@ export interface Booking {
   date: string
   time: string
   address: string
+  
   professional?: {
     name: string
     rating: number
     image: string
   }
 }
+
 
 export interface WorkerProfile {
   _id: string;
