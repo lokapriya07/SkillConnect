@@ -61,6 +61,7 @@ export interface WorkerProfile {
 // Updated Job Interface with unique ID
 export interface ActiveJob {
   id: string;
+  _id?: string;
   description: string;
   budget: string;
   status: 'finding' | 'bidding' | 'scheduled' | 'tracking' | 'finding_workers';
