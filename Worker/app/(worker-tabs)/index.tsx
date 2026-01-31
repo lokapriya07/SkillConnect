@@ -19,6 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ProgressBar } from "@/components/dashboard/progress-bar";
 import { useAppStore } from "@/lib/store";
 import LocationScreen from "@/components/screens/location-screen";
+import * as Location from 'expo-location';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -60,6 +61,57 @@ export default function DashboardScreen() {
 
   // --- FETCH JOBS FROM BACKEND ---
   // Inside DashboardScreen.tsX
+  
+
+  const JobLocationText = ({ jobLocation }: { jobLocation: any }) => {
+    const [address, setAddress] = useState("Loading...");
+
+    useEffect(() => {
+      const getAddress = async () => {
+        try {
+          // 1. Request Permission (Required for iOS/Android)
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            setAddress("Permission denied");
+            return;
+          }
+
+          // 2. Validate Coordinates
+          // Backend stores as [longitude, latitude]
+          const coords = jobLocation?.coordinates;
+          if (!coords || coords.length < 2) {
+            setAddress("Unknown Location");
+            return;
+          }
+
+          const lng = coords[0];
+          const lat = coords[1];
+
+          // 3. Reverse Geocode
+          const result = await Location.reverseGeocodeAsync({
+            latitude: lat,
+            longitude: lng,
+          });
+
+          if (result && result.length > 0) {
+            const { name, city, district, region } = result[0];
+            // Create a readable string
+            const displayAddress = name || district || city || region || "Nearby";
+            setAddress(displayAddress);
+          } else {
+            setAddress("Area not found");
+          }
+        } catch (error) {
+          console.error("Reverse Geocode Error:", error);
+          setAddress("Location Error");
+        }
+      };
+
+      getAddress();
+    }, [jobLocation]);
+
+    return <Text style={styles.jobLocation} numberOfLines={1}>{address}</Text>;
+  };
 
   const fetchMatchedJobs = async (workerId: string) => {
     try {
@@ -149,7 +201,8 @@ export default function DashboardScreen() {
               <View style={{ flex: 1 }}>
                 <View style={styles.jobInfoRow}>
                   <Feather name="map-pin" size={14} color="#6b7280" />
-                  <Text style={styles.jobLocation}>Nearby Request</Text>
+                  {/* Ensure you pass the whole location object */}
+                  <JobLocationText jobLocation={job.location} />
                 </View>
                 <View style={styles.jobInfoRow}>
                   <Feather name="briefcase" size={14} color="#6b7280" />
