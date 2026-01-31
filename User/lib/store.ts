@@ -55,9 +55,15 @@ export interface WorkerProfile {
   rating: number;
   experience: number;
   skills: string[];
-  image?: string;
+  profilePic?: string; // Changed from 'image' to match your backend .select()
+  expertise?: string;  // Added to match your backend .select()
+  location?: {
+    type?: string;
+    coordinates?: [number, number]; // [longitude, latitude]
+    latitude?: number;
+    longitude?: number;
+  };
 }
-
 // Updated Job Interface with unique ID
 export interface ActiveJob {
   id: string;
