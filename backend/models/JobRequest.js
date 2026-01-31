@@ -15,6 +15,12 @@ const jobRequestSchema = new mongoose.Schema(
     imagePath: String,
     videoPath: String,
     audioPath: String,
+    bids: [{
+      workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Work' },
+      bidAmount: Number,
+      message: String,
+      createdAt: { type: Date, default: Date.now }
+    }],
 
     status: {
       type: String,

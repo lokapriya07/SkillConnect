@@ -91,5 +91,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 // Use '0.0.0.0' to ensure your Expo app can connect over local Wi-Fi
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server running on http://192.168.0.2:${PORT}`);
+    console.log(`✅ Server running on http://192.168.0.9:${PORT}`);
 });

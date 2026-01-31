@@ -178,17 +178,12 @@ export default function ProfilePage({ navigation }: any) {
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
   const handleSave = async () => {
     try {
-      // 1. Retrieve the User ID (assuming you stored it during login/signup)
       const storedId = await AsyncStorage.getItem('userId');
-      console.log("Current Session ID:", storedId);
-
       if (!storedId) {
         Alert.alert("Error", "User session not found. Please log in again.");
         return;
       }
 
-      // 2. Send the data to your backend
-      // Replace YOUR_SERVER_URL with your actual IP address or domain
       const response = await fetch(`${API_URL}/api/work/profile/${storedId}`, {
         method: 'PUT',
         headers: {
@@ -205,8 +200,23 @@ export default function ProfilePage({ navigation }: any) {
       const result = await response.json();
 
       if (result.success) {
+        // --- NEW LOGIC TO SAVE WORKER ID ---
+        // The backend returns the worker object in result.data
+        const workerProfileId = result.data._id;
+
+        // Get current user object from storage to append the new ID
+        const existingUserData = await AsyncStorage.getItem("user");
+        let userObj = existingUserData ? JSON.parse(existingUserData) : {};
+
+        // Update the object with the specific Worker Profile ID
+        userObj.workerProfileId = workerProfileId;
+
+        // Save it back so the Job Details page can use it for bidding
+        await AsyncStorage.setItem("user", JSON.stringify(userObj));
+        // -----------------------------------
+
         Alert.alert("Success", "Profile updated successfully!");
-        setIsEditing(false); // Switch back to View Mode
+        setIsEditing(false);
       } else {
         Alert.alert("Update Failed", result.message || "Something went wrong.");
       }

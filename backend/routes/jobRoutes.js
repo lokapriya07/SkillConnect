@@ -186,5 +186,57 @@ router.get('/all-jobs', async (req, res) => {
         res.status(500).json({ error: "Failed to fetch all jobs" });
     }
 });
+// SUBMIT A BID (Worker side)
+router.post('/submit-bid', async (req, res) => {
+    try {
+        const { jobId, workerId, bidAmount } = req.body;
+
+        // Validation
+        if (!jobId || !workerId || !bidAmount) {
+            return res.status(400).json({ success: false, error: "Missing required fields" });
+        }
+
+        const job = await JobRequest.findByIdAndUpdate(
+            jobId,
+            {
+                $push: {
+                    bids: {
+                        workerId, // This must be the ID from the 'Work' collection
+                        bidAmount: Number(bidAmount),
+                        createdAt: new Date()
+                    }
+                }
+            },
+            { new: true }
+        );
+
+        if (!job) return res.status(404).json({ success: false, error: "Job not found" });
+
+        res.status(200).json({ success: true, job });
+    } catch (error) {
+        console.error("Bid Error:", error);
+        res.status(500).json({ success: false, error: "Failed to submit bid" });
+    }
+});
+
+// GET BIDS (User side)
+router.get('/:jobId/bids', async (req, res) => {
+    try {
+        const job = await JobRequest.findById(req.params.jobId)
+            .populate({
+                path: 'bids.workerId',
+                model: 'Work', // Explicitly tell Mongoose which model to use
+                select: 'name profilePic expertise skills rating location'
+            });
+
+        if (!job) return res.status(404).json({ error: "Job not found" });
+
+        // Filter out any bids where the worker profile might have been deleted
+        const validBids = job.bids.filter(bid => bid.workerId !== null);
+        res.status(200).json(validBids);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch bids" });
+    }
+});
 
 module.exports = router;
