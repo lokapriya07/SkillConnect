@@ -39,6 +39,7 @@ const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
 const BANNERS = [
   {
     id: '1',
+    categoryId: 'cleaning',
     image: 'https://cdn.shopify.com/s/files/1/0026/4549/1812/files/shutterstock_1236164359_1024x1024.jpg?v=1614305641',
     title: 'Republic Day Sale',
     subtitle: 'Flat 50% Off on all Spa Services',
@@ -159,41 +160,43 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Active Request Tracker */}
-        {/* Change activeJob to activeJobs.map */}
-        {/* Active Request Tracker */}
-        {activeJobs && activeJobs.length > 0 && activeJobs.map((job) => (
-          <View key={job.id} style={styles.trackerContainer}>
-            <TouchableOpacity
-              style={styles.trackerCard}
-              onPress={() =>
-                router.push({
-                  // CHANGE THIS from "/worker-attractive-profile" to "/worker-bids"
-                  pathname: "/worker-bids" as any,
-                  params: { jobId: job.id }
-                })
-              }
-            >
-              <View style={styles.trackerHeader}>
-                <View style={styles.statusGroup}>
-                  <View style={styles.pulseDot} />
-                  <Text style={styles.statusText}>AI Matching In Progress...</Text>
+        {activeJobs && activeJobs.length > 0 && activeJobs.map((job) => {
+          // Use the database _id if available, otherwise fallback to id
+          const stableId = job._id || job.id;
+
+          return (
+            <View key={stableId} style={styles.trackerContainer}>
+              <TouchableOpacity
+                style={styles.trackerCard}
+                onPress={() =>
+                  router.push({
+                    pathname: "/worker-bids" as any,
+                    params: { jobId: stableId }
+                  })
+                }
+              >
+                <View style={styles.trackerHeader}>
+                  <View style={styles.statusGroup}>
+                    <View style={styles.pulseDot} />
+                    <Text style={styles.statusText}>AI Matching In Progress...</Text>
+                  </View>
+                  <Text style={styles.trackerBudget}>₹{job.budget}</Text>
                 </View>
-                <Text style={styles.trackerBudget}>₹{job.budget}</Text>
-              </View>
 
-              <Text style={styles.trackerDesc} numberOfLines={1}>
-                Matching: "{job.description}"
-              </Text>
-
-              <View style={styles.trackerFooter}>
-                <Text style={styles.actionText}>
-                  View Ranked Workers ({job.matchedWorkers?.length || 0})
+                <Text style={styles.trackerDesc} numberOfLines={1}>
+                  Matching: "{job.description}"
                 </Text>
-                <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
-              </View>
-            </TouchableOpacity>
-          </View>
-        ))}
+
+                <View style={styles.trackerFooter}>
+                  <Text style={styles.actionText}>
+                    View Ranked Workers ({job.matchedWorkers?.length || 0})
+                  </Text>
+                  <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
+                </View>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
 
         {/* Categories Grid */}
         <View style={styles.section}>
