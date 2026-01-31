@@ -140,7 +140,11 @@ interface Bid {
 export default function WorkerBidsScreen() {
     const { jobId } = useLocalSearchParams();
     const router = useRouter();
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 137f68b659d4069021d64fc2e957771a28824510
     const [bids, setBids] = useState<Bid[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -175,9 +179,19 @@ export default function WorkerBidsScreen() {
                 onPress={() => router.push({
                     pathname: `/worker-profile/${item.workerId._id}` as any,
                     params: {
+<<<<<<< HEAD
                         bidAmount: item.bidAmount,
                         name: item.workerId.name,
                         pic: item.workerId.profilePic
+=======
+                        name: item.workerId.name,
+                        profilePic: item.workerId.profilePic,
+                        expertise: item.workerId.expertise,
+                        rating: item.workerId.rating?.toString(),
+                        bidAmount: item.bidAmount.toString(),
+                        skills: item.workerId.skills.join(','),
+                        location: (item.workerId as any).location ? JSON.stringify((item.workerId as any).location) : '',
+>>>>>>> 137f68b659d4069021d64fc2e957771a28824510
                     }
                 })}
             >
@@ -185,9 +199,15 @@ export default function WorkerBidsScreen() {
                     {/* Profile Picture Section */}
                     <View style={styles.avatarContainer}>
                         {hasProfilePic ? (
+<<<<<<< HEAD
                             <Image 
                                 source={{ uri: item.workerId.profilePic }} 
                                 style={styles.avatar} 
+=======
+                            <Image
+                                source={{ uri: item.workerId.profilePic }}
+                                style={styles.avatar}
+>>>>>>> 137f68b659d4069021d64fc2e957771a28824510
                             />
                         ) : (
                             <View style={[styles.avatar, styles.initialsAvatar]}>
@@ -204,6 +224,7 @@ export default function WorkerBidsScreen() {
                         <Text style={styles.expertiseText}>
                             {item.workerId.expertise || item.workerId.skills?.[0] || 'Professional'}
                         </Text>
+<<<<<<< HEAD
                         
                         <View style={styles.ratingRow}>
                             <Ionicons name="star" size={14} color="#FFB800" />
@@ -220,6 +241,24 @@ export default function WorkerBidsScreen() {
                     </View>
                 </View>
 
+=======
+
+                        <View style={styles.ratingRow}>
+                            <Ionicons name="star" size={14} color="#FFB800" />
+                            <Text style={styles.ratingText}>
+                                {item.workerId.rating ? item.workerId.rating.toFixed(1) : '5.0'}
+                            </Text>
+                            <Text style={styles.reviewCount}>(12 reviews)</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.priceSection}>
+                        <Text style={styles.bidLabel}>PROPOSAL</Text>
+                        <Text style={styles.amount}>₹{item.bidAmount}</Text>
+                    </View>
+                </View>
+
+>>>>>>> 137f68b659d4069021d64fc2e957771a28824510
                 <View style={styles.cardFooter}>
                     <View style={styles.skillsWrapper}>
                         {item.workerId.skills?.slice(0, 2).map((skill, index) => (
@@ -243,7 +282,11 @@ export default function WorkerBidsScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="dark-content" />
+<<<<<<< HEAD
             
+=======
+
+>>>>>>> 137f68b659d4069021d64fc2e957771a28824510
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
