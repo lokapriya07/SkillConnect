@@ -134,32 +134,29 @@ router.post(
         }
     }
 );
-
 // --- 2. WORKER FEED (SHOW JOBS ON HOME SCREEN) ---
 router.get('/worker-feed/:workerId', async (req, res) => {
     try {
         const { workerId } = req.params;
-
         const worker = await Work.findOne({ userId: workerId });
+
         if (!worker) {
             return res.status(404).json({ message: "Worker profile not found" });
         }
 
-        // Logic: Match specific skills OR show general jobs to everyone
         const jobs = await JobRequest.find({
             status: 'finding_workers',
-            userId: { $ne: workerId },
-            $or: [
-                { skillsRequired: { $in: worker.skills } }, // Exact matches
-                { skillsRequired: "general_handyman" }      // Fallback for everyone
-            ],
+            userId: { $ne: workerId }, // Don't show worker their own posted jobs
+
+            // REMOVE the skill filter temporarily to test visibility
+            // OR make it much broader:
             location: {
                 $near: {
                     $geometry: {
                         type: 'Point',
                         coordinates: worker.location.coordinates
                     },
-                    $maxDistance: 15000 // Increased to 15km for better reach
+                    $maxDistance: 50000 // Increase to 50km for testing
                 }
             }
         }).sort({ createdAt: -1 });
