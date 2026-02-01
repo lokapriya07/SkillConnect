@@ -106,8 +106,8 @@ router.post(
             const videoPath = req.files?.video?.[0]?.path || null;
 
             // ✅ Call the new function name with ALL 3 inputs
-            const skillsRequired = await extractSkillsFromMultimodal(description, audioPath, imagePath);
-
+            const rawSkills = await extractSkillsFromMultimodal(description, audioPath, imagePath);
+            const skillsRequired = rawSkills.map(s => s.toLowerCase().trim());
             const job = await JobRequest.create({
                 description: description || "Voice/Image Request",
                 budget,
@@ -144,27 +144,69 @@ router.get('/worker-feed/:workerId', async (req, res) => {
             return res.status(404).json({ message: "Worker profile not found" });
         }
 
-        const jobs = await JobRequest.find({
-            status: 'finding_workers',
-            userId: { $ne: workerId }, // Don't show worker their own posted jobs
+        // --- NEW: SKILL CRITERIA ---
+        const workerSkills = (worker.skills || []).map(s => s.toLowerCase().trim());
 
-            // REMOVE the skill filter temporarily to test visibility
-            // OR make it much broader:
-            location: {
+        // Base Query
+        let query = {
+            status: 'finding_workers',
+            userId: { $ne: workerId },
+            // Filter jobs where the required skills overlap with worker's skills
+            skillsRequired: { $in: workerSkills }
+        };
+
+        // Add location filter if coordinates exist
+        if (worker.location && worker.location.coordinates) {
+            query.location = {
                 $near: {
                     $geometry: {
                         type: 'Point',
                         coordinates: worker.location.coordinates
                     },
-                    $maxDistance: 50000 // Increase to 50km for testing
+                    $maxDistance: 100000
                 }
-            }
-        }).sort({ createdAt: -1 });
+            };
+        }
+
+        let jobs = await JobRequest.find(query).sort({ createdAt: -1 });
+
+        // FALLBACK: If no jobs found nearby with those specific skills, 
+        // show the latest 10 jobs matching their skills regardless of location
+        if (jobs.length === 0) {
+            jobs = await JobRequest.find({
+                status: 'finding_workers',
+                userId: { $ne: workerId },
+                skillsRequired: { $in: workerSkills } // Still keep the skill filter
+            })
+                .sort({ createdAt: -1 })
+                .limit(10);
+        }
 
         res.status(200).json(jobs);
     } catch (error) {
         console.error("❌ Worker Feed Error:", error);
         res.status(500).json({ error: "Failed to fetch jobs" });
+    }
+});
+router.get('/user/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        // Find jobs where the userId matches
+        // We filter for statuses that are not 'completed' or 'cancelled'
+        const activeJobs = await JobRequest.find({
+            userId: userId,
+            status: { $in: ['finding_workers', 'bidding', 'scheduled', 'tracking', 'finding'] }
+        }).sort({ createdAt: -1 }); // Newest first
+
+        res.status(200).json({
+            success: true,
+            count: activeJobs.length,
+            jobs: activeJobs
+        });
+    } catch (error) {
+        console.error("❌ Fetch User Jobs Error:", error);
+        res.status(500).json({ error: "Failed to fetch your active jobs" });
     }
 });
 

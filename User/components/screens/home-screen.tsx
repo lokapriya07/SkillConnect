@@ -79,7 +79,7 @@ export const serviceImages: Record<string, string> = {
 
 export default function HomeScreen() {
   const router = useRouter()
-  const { currentLocation, getCartCount, activeJobs } = useAppStore()
+  const { currentLocation, getCartCount, activeJobs, user, fetchActiveJobs } = useAppStore()
 
   // Carousel Logic
   const [activeIndex, setActiveIndex] = useState(0)
@@ -88,7 +88,11 @@ export default function HomeScreen() {
   const featuredServices = getFeaturedServices()
   const popularServices = getPopularServices()
   const cartCount = getCartCount()
-
+  useEffect(() => {
+    if (user) {
+      fetchActiveJobs();
+    }
+  }, [user]);
   // Auto-slide effect
   useEffect(() => {
     const interval = setInterval(() => {

@@ -9,6 +9,9 @@ const updateWorkProfile = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ success: false, message: "Invalid User ID format" });
     }
+    if (updateData.skills && Array.isArray(updateData.skills)) {
+      updateData.skills = updateData.skills.map(s => s.toLowerCase().trim());
+    }
 
     // Handle GPS
     if (updateData.latitude && updateData.longitude) {
@@ -28,6 +31,7 @@ const updateWorkProfile = async (req, res) => {
       { $set: updateData },
       { new: true, upsert: true }
     );
+   
 
     res.status(200).json({
       success: true,
@@ -43,27 +47,38 @@ const updateWorkProfile = async (req, res) => {
 const getWorkProfile = async (req, res) => {
   try {
     const { userId } = req.params;
-
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ success: false, message: "Invalid User ID format" });
     }
 
     const profile = await Work.findOne({ userId });
-
     if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "Profile not found"
+      return res.status(200).json({ // Return 200 instead of 404 for new workers
+        success: true,
+        data: { completionPercentage: 0, name: "New Worker" }
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: profile
+    // --- NEW: CALCULATION LOGIC ---
+    const fields = ['name', 'bio', 'skills', 'address', 'hourlyRate', 'location'];
+    let filledFields = 0;
+
+    fields.forEach(field => {
+      if (profile[field] && (Array.isArray(profile[field]) ? profile[field].length > 0 : true)) {
+        filledFields++;
+      }
     });
 
+    const completionPercentage = Math.round((filledFields / fields.length) * 100);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...profile._doc,
+        completionPercentage // Send this to the frontend
+      }
+    });
   } catch (error) {
-    console.error("Fetch Error:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };

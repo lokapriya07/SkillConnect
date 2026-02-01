@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState,useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -91,8 +91,7 @@ export default function ProfilePage({ navigation }: any) {
   const [activeTab, setActiveTab] = useState("profile");
 
   // --- NEW VERIFICATION STATES ---
-  // Statuses: 'not_submitted', 'pending', 'assigned', 'verified'
-  const [verificationStatus, setVerificationStatus] = useState('not_submitted');
+  
   const [aadhaarUploaded, setAadhaarUploaded] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
   // Add these to your state declarations at the top of ProfilePage
@@ -115,26 +114,83 @@ export default function ProfilePage({ navigation }: any) {
   ];
   // Form State - Centralized
   const [profileData, setProfileData] = useState({
-    name: "John Doe",
-    title: "Plumber & Electrician",
-    bio: "Experienced professional with 10+ years in residential plumbing and electrical work.",
-    address: "123 Main St",
-    city: "San Francisco",
+    name: "",
+    title: "",
+    bio: "",
+    address: "",
+    city: "",
     latitude: null as number | null,
     longitude: null as number | null,
-    state: "CA",
-    zip: "94102",
+    state: "",
+    zip: "",
     radius: "25 miles",
-    hourlyRate: "75",
-    minHours: "2",
-    startTime: "08:00",
+    hourlyRate: "",
+    minHours: "",
+    startTime: "09:00",
     endTime: "18:00",
     isAvailable: true,
   });
 
-  const [selectedSkills, setSelectedSkills] = useState(["Plumbing", "Electrical"]);
-  const [selectedLanguages, setSelectedLanguages] = useState(["English", "Spanish"]);
-  const [workingDays, setWorkingDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri"]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [workingDays, setWorkingDays] = useState<string[]>([]);
+
+  // 2. Fetch existing profile on mount (Fixed useEffect)
+  useEffect(() => {
+    const fetchExistingProfile = async () => {
+      try {
+        const storedId = await AsyncStorage.getItem('userId');
+        if (!storedId) return;
+
+        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/work/profile/${storedId}`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          setProfileData({
+            name: result.data.name || "",
+            title: result.data.title || "",
+            bio: result.data.bio || "",
+            address: result.data.address || "",
+            city: result.data.city || "",
+            latitude: result.data.location?.coordinates[1] || null,
+            longitude: result.data.location?.coordinates[0] || null,
+            state: result.data.state || "",
+            zip: result.data.zip || "",
+            radius: result.data.radius || "25 miles",
+            hourlyRate: result.data.hourlyRate?.toString() || "",
+            minHours: result.data.minHours?.toString() || "",
+            startTime: result.data.startTime || "09:00",
+            endTime: result.data.endTime || "18:00",
+            isAvailable: result.data.isAvailable ?? true,
+          });
+          setSelectedSkills(result.data.skills || []);
+          setSelectedLanguages(result.data.languages || []);
+          setWorkingDays(result.data.workingDays || []);
+        }
+      } catch (error) {
+        console.error("Fetch Error:", error);
+      }
+    };
+    const loadVerificationStatus = async () => {
+      try {
+        const isVerified = await AsyncStorage.getItem('is_verified_worker');
+        const hasRequested = await AsyncStorage.getItem('verification_requested');
+
+        if (isVerified === 'true') {
+          setVerificationStatus('verified');
+        } else if (hasRequested === 'true') {
+          setVerificationStatus('pending');
+        } else {
+          setVerificationStatus('not_submitted'); // Explicitly set for new workers
+        }
+      } catch (e) {
+        setVerificationStatus('not_submitted');
+      }
+    };
+    loadVerificationStatus();
+
+    fetchExistingProfile();
+  }, []);
 
   // UI States
   const [showSkillDropdown, setShowSkillDropdown] = useState(false);
@@ -146,34 +202,70 @@ export default function ProfilePage({ navigation }: any) {
   const [selectedCat, setSelectedCat] = useState("Plumber");
 
   const handleLogout = async () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // 1. We keep 'is_verified_worker' so they skip OTP later.
-              // 2. We only clear temporary session data (like user name/email) if you use a store.
-              // 3. Redirect to login. 
-              // Note: Using absolute path /auth/login is safer in Expo Router.
-              router.replace("/auth/login");
-            } catch (error) {
-              console.error("Logout Error:", error);
-            }
+    Alert.alert("Logout", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // IMPORTANT: Clear verification flags on logout 
+            // so the next user starts fresh
+            await AsyncStorage.removeItem('is_verified_worker');
+            await AsyncStorage.removeItem('verification_requested');
+            await AsyncStorage.removeItem('userId');
+            await AsyncStorage.removeItem('user');
+
+            router.replace("/auth/login");
+          } catch (error) {
+            console.error("Logout Error:", error);
           }
         }
-      ]
-    );
+      }
+    ]);
   };
+  
+  const [verificationStatus, setVerificationStatus] = useState('not_submitted');
+  const tabs = [
+    { value: "profile", label: "Profile", icon: User },
+    // Only include Verification if the status is NOT 'verified'
+    ...(verificationStatus !== 'verified'
+      ? [{ value: "verification", label: "Verification", icon: Shield }]
+      : []),
+    { value: "portfolio", label: "Portfolio", icon: Briefcase },
+    { value: "reviews", label: "Reviews", icon: Star },
+  ];
+  const handleRequestVerification = async () => {
+    if (consentChecked && experience && aadhaarLastFour.length === 4) {
+      try {
+        // 1. Update local UI state in ProfilePage
+        setVerificationStatus('pending');
+
+        // 2. Persist to storage so the Header can see the "Pending" status
+        await AsyncStorage.setItem('verification_requested', 'true');
+
+        Alert.alert("Request Sent", "A verification executive will be assigned soon.");
+      } catch (error) {
+        console.error("Storage Error:", error);
+        Alert.alert("Error", "Could not save verification request.");
+      }
+    } else {
+      Alert.alert("Missing Info", "Please fill all mandatory fields and give consent.");
+    }
+  };
+  // 2. CALL THIS when the [Dev Only] Complete Verification button is clicked
   const handleCompleteVerification = async () => {
-    setVerificationStatus('verified');
-    // Save to local storage so Login screen knows to skip OTP
-    await AsyncStorage.setItem('is_verified_worker', 'true');
-    Alert.alert("Verified!", "You are now a verified worker. Next time you login, OTP will be skipped.");
+    try {
+      setVerificationStatus('verified'); // Local UI update
+      await AsyncStorage.setItem('is_verified_worker', 'true'); // Persistent Header update
+
+      // Auto-switch to profile tab so the verification tab can disappear
+      setActiveTab('profile');
+
+      Alert.alert("Verified!", "You are now a trusted worker.");
+    } catch (error) {
+      console.error(error);
+    }
   };
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
   const handleSave = async () => {
@@ -349,10 +441,15 @@ export default function ProfilePage({ navigation }: any) {
 
           <View style={styles.tabContainer}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
-              <TabButton value="profile" label="Profile" icon={User} />
-              <TabButton value="verification" label="Verification" icon={Shield} />
-              <TabButton value="portfolio" label="Portfolio" icon={Briefcase} />
-              <TabButton value="reviews" label="Reviews" icon={Star} />
+              {/* Map through the dynamic tabs array */}
+              {tabs.map((tab) => (
+                <TabButton
+                  key={tab.value}
+                  value={tab.value}
+                  label={tab.label}
+                  icon={tab.icon}
+                />
+              ))}
             </ScrollView>
           </View>
 
@@ -537,8 +634,8 @@ export default function ProfilePage({ navigation }: any) {
                 </TouchableOpacity>
               </>
             )}
-
-            {activeTab === "verification" && (
+            
+            {activeTab === "verification" && verificationStatus !== 'verified' && (
               <View>
                 <Text style={[styles.sectionHeader, { fontSize: 20, marginBottom: 20 }]}>Verification & Trust</Text>
 
@@ -571,10 +668,7 @@ export default function ProfilePage({ navigation }: any) {
                     </View>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-                  <LogOut size={18} color="#ef4444" />
-                  <Text style={styles.logoutBtnText}>Logout Session</Text>
-                </TouchableOpacity>
+                
 
                 {/* STATE 1: NOT SUBMITTED (FORM ENTRY) */}
                 {verificationStatus === 'not_submitted' && (
@@ -635,19 +729,12 @@ export default function ProfilePage({ navigation }: any) {
 
                       <Text style={styles.badgeHint}>“This helps us verify your work quality.”</Text>
                     </View>
-
                     <TouchableOpacity
                       style={[
                         styles.saveBtn,
                         (!consentChecked || !experience || aadhaarLastFour.length < 4) && { opacity: 0.5 }
                       ]}
-                      onPress={() => {
-                        if (consentChecked && experience && aadhaarLastFour.length === 4) {
-                          setVerificationStatus('pending');
-                        } else {
-                          Alert.alert("Missing Info", "Please fill all mandatory fields and give consent.");
-                        }
-                      }}
+                      onPress={handleRequestVerification} // Use the new function below
                     >
                       <Shield size={18} color="#FFF" />
                       <Text style={styles.saveBtnText}>Request Verification</Text>
@@ -729,9 +816,13 @@ export default function ProfilePage({ navigation }: any) {
                       <View style={styles.checkItem}><CheckCircle2 size={16} color="#94a3b8" /><Text style={styles.checkText}>Work explanation / demo</Text></View>
                     </View>
 
-                    <TouchableOpacity onPress={() => setVerificationStatus('verified')} style={styles.saveBtn}>
+                    <TouchableOpacity
+                      onPress={handleCompleteVerification} // Use the full function here
+                      style={styles.saveBtn}
+                    >
                       <Text style={styles.saveBtnText}>[Dev Only] Complete Verification</Text>
                     </TouchableOpacity>
+                  
                   </View>
                 )}
 
