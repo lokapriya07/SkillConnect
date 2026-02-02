@@ -134,32 +134,49 @@ router.post(
         }
     }
 );
-// --- 2. WORKER FEED (SHOW JOBS ON HOME SCREEN) ---
+// --- 2. WORKER FEED (UPDATED FOR BETTER VISIBILITY) ---
 router.get('/worker-feed/:workerId', async (req, res) => {
     try {
         const { workerId } = req.params;
-        const worker = await Work.findOne({ userId: workerId });
 
+        // 1. Find the worker profile
+        const worker = await Work.findOne({ userId: workerId });
         if (!worker) {
             return res.status(404).json({ message: "Worker profile not found" });
         }
 
-        const jobs = await JobRequest.find({
+        // 2. Build the query
+        const query = {
             status: 'finding_workers',
-            userId: { $ne: workerId }, // Don't show worker their own posted jobs
+            userId: { $ne: workerId }, // Don't show your own jobs
+        };
 
-            // REMOVE the skill filter temporarily to test visibility
-            // OR make it much broader:
-            location: {
+        // 3. Optimized Logic: 
+        // We show jobs if: 
+        // A) The worker has matching skills 
+        // B) OR if the job has NO specific skills (general)
+        // C) OR we can comment out skills entirely to show ALL jobs to ALL workers
+        query.$or = [
+            { skillsRequired: { $in: worker.skills || [] } },
+            { skillsRequired: { $size: 0 } }, // Show jobs with no tags
+            { skillsRequired: "general_handyman" }
+        ];
+
+        // 4. Geospatial Query
+        // Increased distance to 50km (50000 meters) to ensure workers see jobs while testing
+        if (worker.location && worker.location.coordinates) {
+            query.location = {
                 $near: {
                     $geometry: {
                         type: 'Point',
                         coordinates: worker.location.coordinates
                     },
-                    $maxDistance: 50000 // Increase to 50km for testing
+                    $maxDistance: 50000 
                 }
-            }
-        }).sort({ createdAt: -1 });
+            };
+        }
+
+        const jobs = await JobRequest.find(query).sort({ createdAt: -1 });
 
         res.status(200).json(jobs);
     } catch (error) {
@@ -167,7 +184,6 @@ router.get('/worker-feed/:workerId', async (req, res) => {
         res.status(500).json({ error: "Failed to fetch jobs" });
     }
 });
-
 router.get('/all-jobs', async (req, res) => {
     try {
         // Fetches every job in the database, newest first
