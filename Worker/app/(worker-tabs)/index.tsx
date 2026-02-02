@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   LayoutAnimation,
+  RefreshControl,
   FlatList,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -26,6 +27,7 @@ export default function DashboardScreen() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [isLocationModalVisible, setIsLocationModalVisible] = useState(false);
   const [workerName, setWorkerName] = useState("Worker");
+  const [refreshing, setRefreshing] = useState(false);
 
   // --- NEW STATE FOR MATCHED JOBS ---
   const [matchedJobs, setMatchedJobs] = useState([]);
@@ -41,22 +43,57 @@ export default function DashboardScreen() {
   };
 
   const { currentLocation } = useAppStore();
+  const [profileCompletion, setProfileCompletion] = useState(0);
 
-  useEffect(() => {
-    const loadWorkerData = async () => {
-      try {
-        const savedName = await AsyncStorage.getItem("workerName");
-        const workerId = await AsyncStorage.getItem("userId"); // Assuming you store userId on login
-        if (savedName) setWorkerName(savedName);
 
-        if (workerId) {
-          fetchMatchedJobs(workerId);
+  // Inside DashboardScreen.tsx
+
+  // 1. Unified load function
+  const initializeDashboard = async () => {
+    try {
+      setLoadingJobs(true);
+
+      // Get stored data
+      const savedName = await AsyncStorage.getItem("workerName");
+      const workerId = await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
+
+      if (savedName) setWorkerName(savedName);
+
+      if (workerId) {
+        // Fetch profile to check completion
+        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/work/profile/${workerId}`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          setWorkerName(result.data.name || "Worker");
+          // Update the completion state from backend
+          setProfileCompletion(result.data.completionPercentage || 0);
+        } else {
+          // NEW WORKER CASE: Profile not found or no percentage returned
+          setProfileCompletion(0);
         }
-      } catch (error) {
-        console.error("Failed to load worker data:", error);
+
+        // Fetch the jobs feed
+        await fetchMatchedJobs(workerId);
       }
-    };
-    loadWorkerData();
+    } catch (error) {
+      console.error("Dashboard Load Error:", error);
+      setProfileCompletion(0); // Default to 0 on error so card shows
+    } finally {
+      setLoadingJobs(false);
+    }
+  };
+
+  // 2. Single useEffect
+  useEffect(() => {
+    initializeDashboard();
+  }, []);
+
+  // 3. Update onRefresh to use the same logic
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await initializeDashboard();
+    setRefreshing(false);
   }, []);
 
   // --- FETCH JOBS FROM BACKEND ---
@@ -146,7 +183,20 @@ export default function DashboardScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+      // ADD THIS PROP HERE
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={["#3b82f6"]} // Android spinner color
+          tintColor="#3b82f6"   // iOS spinner color
+        />
+      }
+    >
+    
       {/* Real-Time Location Bar */}
       <View style={styles.locationHeader}>
         <View style={styles.locationRow}>
@@ -178,16 +228,18 @@ export default function DashboardScreen() {
       </View>
 
       {/* Profile Completion */}
-      <View style={styles.profileCard}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.cardTitle}>Profile Visibility</Text>
-          <Text style={styles.primaryText}>70%</Text>
+      {profileCompletion < 100 && (
+        <View style={styles.profileCard}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.cardTitle}>Profile Visibility</Text>
+            <Text style={styles.primaryText}>{profileCompletion}%</Text>
+          </View>
+          <ProgressBar value={profileCompletion} style={{ fillColor: "#3b82f6" }} />
+          <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/profile")}>
+            <Text style={styles.primaryButtonText}>Optimize Profile</Text>
+          </TouchableOpacity>
         </View>
-        <ProgressBar value={70} style={{ fillColor: "#3b82f6" }} />
-        <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/profile")}>
-          <Text style={styles.primaryButtonText}>Optimize Profile</Text>
-        </TouchableOpacity>
-      </View>
+      )}
 
       {/* New Job Requests - DYNAMIC SECTION */}
       <Text style={styles.sectionHeading}>🔥 New Job Requests</Text>
@@ -238,9 +290,13 @@ export default function DashboardScreen() {
           </View>
         ))
       ) : (
-        <View style={styles.whiteCard}>
-          <Text style={styles.mutedText}>No jobs matching your skills right now. Check back soon!</Text>
-        </View>
+            // Inside your jobs.length === 0 condition in the Frontend
+            <View style={styles.whiteCard}>
+              <Text style={styles.mutedText}>No jobs matching your specific skills nearby.</Text>
+              <TouchableOpacity onPress={() => router.push("/profile")}>
+                <Text style={{ color: '#3b82f6', marginTop: 10 }}>Add more skills to your profile →</Text>
+              </TouchableOpacity>
+            </View>
       )}
 
       <View style={styles.ongoingContainer}>

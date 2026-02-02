@@ -1,4 +1,5 @@
-import React, { useState } from "react"
+import React, { useState,useCallback ,useEffect} from "react"
+import { useFocusEffect } from "expo-router";
 import { 
   View, 
   Text, 
@@ -12,30 +13,67 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Feather } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+
 
 // --- Types & Configuration ---
-type VerificationStatus = "pending" | "verified" | "warning"
+type VerificationStatus = "pending" | "verified" | "warning" | "not_verified"
 
 type Props = {
   notificationCount?: number
   status?: VerificationStatus
 }
 
+
+
 const STATUS_CONFIG = {
+  not_verified: { label: "Unverified", bg: "#F3F4F6", text: "#6B7280", icon: "user-x" as const },
   pending: { label: "Pending", bg: "#FEF3C7", text: "#92400E", icon: "clock" as const },
   verified: { label: "Verified", bg: "#DCFCE7", text: "#166534", icon: "check-circle" as const },
   warning: { label: "Warning", bg: "#FEE2E2", text: "#991B1B", icon: "alert-triangle" as const },
 } as const
 
-// --- Component ---
 export default function Header({
   notificationCount = 3,
-  status = "pending",
+  status: initialStatus = "not_verified", // Correctly defaults to Unverified
 }: Props) {
   const router = useRouter()
+  const [currentStatus, setCurrentStatus] = useState<VerificationStatus>(initialStatus)
   const [isNotiVisible, setIsNotiVisible] = useState(false)
-  
-  const statusConfig = STATUS_CONFIG[status]
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        // 1. Fetch raw values from storage
+        const isVerifiedRaw = await AsyncStorage.getItem('is_verified_worker');
+        const hasRequestedRaw = await AsyncStorage.getItem('verification_requested');
+
+        // 2. DEBUG LOGS: Check your terminal/console
+        console.log("--- HEADER DEBUG ---");
+        console.log("Raw Verified Value:", isVerifiedRaw);      // Should be null for new workers
+        console.log("Raw Requested Value:", hasRequestedRaw);    // Should be null for new workers
+        console.log("--------------------");
+
+        // 3. Strict Logic
+        if (isVerifiedRaw === 'true') {
+          setCurrentStatus('verified');
+        } else if (hasRequestedRaw === 'true') {
+          setCurrentStatus('pending');
+        } else {
+          // This is where new workers should land
+          setCurrentStatus('not_verified');
+        }
+      } catch (error) {
+        console.error("Storage Error:", error);
+        setCurrentStatus('not_verified');
+      }
+    };
+
+    checkStatus();
+  }, []);
+
+  const statusConfig = STATUS_CONFIG[currentStatus];
+  // ... rest of your return code
 
   // Mock Notification Data
   const notifications = [
@@ -57,7 +95,7 @@ export default function Header({
 
         {/* RIGHT: Status, Wallet, and Bell */}
         <View style={styles.right}>
-          {/* 1. Status Badge with Icon */}
+          {/* Status Badge uses currentStatus now */}
           <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
             <Feather name={statusConfig.icon} size={12} color={statusConfig.text} style={styles.statusIcon} />
             <Text style={[styles.statusText, { color: statusConfig.text }]}>

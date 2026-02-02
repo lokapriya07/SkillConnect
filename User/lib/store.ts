@@ -95,6 +95,7 @@ interface AppState {
   activeJobs: ActiveJob[]; // Changed to Array
 
   // Actions
+  fetchActiveJobs: () => Promise<void>;
   addActiveJob: (job: ActiveJob) => void; // Changed to add to array
   removeJob: (id: string) => void;
   clearJobs: () => void;
@@ -113,6 +114,7 @@ interface AppState {
   getCartTotal: () => number
   getCartCount: () => number
   logout: () => void
+  
 }
 
 export const useAppStore = create<AppState>()(
@@ -130,6 +132,26 @@ export const useAppStore = create<AppState>()(
       addActiveJob: (job) => set((state) => ({
         activeJobs: [job, ...state.activeJobs]
       })),
+      // Inside your useAppStore fetchActiveJobs function:
+      fetchActiveJobs: async () => {
+        const user = get().user;
+        const userId = user?._id || user?.id; // Handle both formats
+
+        if (!userId) return;
+
+        try {
+          // Note: use the new /user/:userId endpoint
+          const response = await fetch(`http://192.168.0.2:5000/api/jobs/user/${userId}`);
+          const data = await response.json();
+
+          if (data.success) {
+            // Map the backend 'jobs' to your state 'activeJobs'
+            set({ activeJobs: data.jobs });
+          }
+        } catch (error) {
+          console.error("Sync error:", error);
+        }
+      },
 
       removeJob: (id) => set((state) => ({
         activeJobs: state.activeJobs.filter(j => j.id !== id)
@@ -217,8 +239,7 @@ export const useAppStore = create<AppState>()(
         isAuthenticated: false,
         user: null,
         cart: [],
-        currentLocation: null,
-        activeJobs: []
+        currentLocation: null
       }),
     }),
     {
