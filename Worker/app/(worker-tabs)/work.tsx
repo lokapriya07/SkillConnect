@@ -1,5 +1,9 @@
 
+
 import React, { useState, useEffect, useMemo } from "react";
+
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+
 import {
     View,
     Text,
@@ -44,10 +48,10 @@ export default function WorkerJobDetails() {
     // --- Chat States ---
     const [chatVisible, setChatVisible] = useState(false);
     const [messageText, setMessageText] = useState("");
-    const [messages, setMessages] = useState([
-        { id: "1", text: "Hi, I saw your job request. Is this still available?", sender: "worker" },
-        { id: "2", text: "Yes, it is!", sender: "user" }
-    ]);
+    const [messages, setMessages] = useState<any[]>([]);
+    const [loadingMessages, setLoadingMessages] = useState(false);
+    const [userData, setUserData] = useState<any>(null);
+    const [userId, setUserId] = useState<string>('');
 
     // --- Helpers ---
     const getFullUrl = (path: string) => {
@@ -67,6 +71,13 @@ export default function WorkerJobDetails() {
         return R * c;
     };
 
+    // Generate conversation ID
+    const getConversationId = useCallback(() => {
+        if (!userData?.workerProfileId || !userId) return null;
+        const ids = [userData.workerProfileId, userId].sort();
+        return ids.join('_');
+    }, [userData, userId]);
+
     // --- Effects ---
     useEffect(() => {
         if (jobId) fetchJobDetails();
@@ -81,6 +92,49 @@ export default function WorkerJobDetails() {
         }
     }, [job]);
 
+    // Get user data on mount
+    useEffect(() => {
+        const getUserData = async () => {
+            try {
+                const userStr = await AsyncStorage.getItem("user");
+                if (userStr) {
+                    const user = JSON.parse(userStr);
+                    setUserData(user);
+                }
+            } catch (error) {
+                console.error('Error getting user data:', error);
+            }
+        };
+        getUserData();
+    }, []);
+
+    // Fetch messages from backend
+    const fetchMessages = useCallback(async () => {
+        const conversationId = getConversationId();
+        if (!conversationId) return;
+
+        setLoadingMessages(true);
+        try {
+            const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/conversation/${conversationId}`);
+            const result = await response.json();
+            if (result.success) {
+                setMessages(result.messages);
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+            setMessages([]);
+        } finally {
+            setLoadingMessages(false);
+        }
+    }, [getConversationId]);
+
+    // Load messages when chat opens
+    useEffect(() => {
+        if (chatVisible && userId) {
+            fetchMessages();
+        }
+    }, [chatVisible, userId, fetchMessages]);
+
     const fetchJobDetails = async () => {
         try {
             const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/all-jobs`);
@@ -90,6 +144,10 @@ export default function WorkerJobDetails() {
             if (foundJob) {
                 setJob(foundJob);
                 if (foundJob.budget) setBidAmount(foundJob.budget.toString());
+                // Set user ID for chat (the job poster)
+                if (foundJob.userId) {
+                    setUserId(foundJob.userId);
+                }
             } else {
                 Alert.alert("Error", "Job not found.");
             }
@@ -150,23 +208,75 @@ export default function WorkerJobDetails() {
         } catch (e) { Alert.alert("Error", "Could not play audio."); }
     };
 
-    const handleSendMessage = () => {
-        if (messageText.trim().length > 0) {
-            const newMessage = {
-                id: Date.now().toString(),
-                text: messageText,
-                sender: 'worker',
-            };
-            setMessages([...messages, newMessage]);
-            setMessageText('');
+    // Send message to backend
+    const handleSendMessage = async () => {
+        if (messageText.trim().length === 0) return;
+        if (!userData?.workerProfileId || !userId) {
+            Alert.alert('Error', 'Please login to send messages');
+            return;
+        }
+
+        const conversationId = getConversationId();
+        if (!conversationId) return;
+
+        const messageData = {
+            conversationId,
+            senderId: userData.workerProfileId,
+            senderType: 'worker',
+            receiverId: userId,
+            receiverType: 'user',
+            message: messageText.trim(),
+            messageType: 'text'
+        };
+
+        try {
+            const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(messageData)
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                // Add message to local state
+                const newMessage = {
+                    id: result.message._id || Date.now().toString(),
+                    text: messageText.trim(),
+                    sender: 'worker',
+                    createdAt: new Date().toISOString()
+                };
+                setMessages(prev => [...prev, newMessage]);
+                setMessageText('');
+            } else {
+                Alert.alert('Error', 'Failed to send message');
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            Alert.alert('Error', 'Network error. Please try again.');
+        }
+    };
+
+    // Mark messages as read
+    const markMessagesAsRead = async () => {
+        const conversationId = getConversationId();
+        if (!conversationId || !userData?.workerProfileId) return;
+
+        try {
+            await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/read/${conversationId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userData.workerProfileId, userType: 'worker' })
+            });
+        } catch (error) {
+            console.error('Error marking messages as read:', error);
         }
     };
 
     const submitBid = async () => {
         if (!bidAmount) return Alert.alert("Wait", "Please enter a bid amount.");
         try {
-            const userData = await AsyncStorage.getItem("user");
-            const user = userData ? JSON.parse(userData) : null;
+            const userStr = await AsyncStorage.getItem("user");
+            const user = userStr ? JSON.parse(userStr) : null;
             const workerIdForBackend = user?.workerProfileId;
             if (!workerIdForBackend) {
                 Alert.alert("Profile Incomplete", "Please update your profile first to get a Worker ID.");
@@ -281,7 +391,17 @@ export default function WorkerJobDetails() {
 
                         {/* Submit Bid and Chat Row */}
                         <View style={styles.actionRow}>
-                            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setChatVisible(true)}>
+                            <TouchableOpacity 
+                                style={styles.secondaryBtn} 
+                                onPress={() => {
+                                    if (!userData?.workerProfileId) {
+                                        Alert.alert('Login Required', 'Please login to chat with users');
+                                        return;
+                                    }
+                                    setChatVisible(true);
+                                    markMessagesAsRead();
+                                }}
+                            >
                                 <Ionicons name="chatbubbles-outline" size={24} color={Colors.primary || "#007AFF"} />
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.submitBtn} onPress={submitBid}>
@@ -304,22 +424,40 @@ export default function WorkerJobDetails() {
                             <Ionicons name="chevron-down" size={32} color="#1A202C" />
                         </TouchableOpacity>
                         <Text style={styles.chatHeaderText}>Chat with User</Text>
-                        <View style={{ width: 32 }} /> 
+                        <View style={{ width: 32 }} />
                     </View>
 
-                    <FlatList
-                        data={messages}
-                        keyExtractor={(item) => item.id}
-                        contentContainerStyle={styles.messageList}
-                        renderItem={({ item }) => (
-                            <View style={[
-                                styles.msgBubble,
-                                item.sender === 'worker' ? styles.rightBubble : styles.leftBubble
-                            ]}>
-                                <Text style={styles.msgText}>{item.text}</Text>
-                            </View>
-                        )}
-                    />
+                    {loadingMessages ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color={Colors.primary || "#007AFF"} />
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={messages}
+                            keyExtractor={(item) => item.id || item._id}
+                            contentContainerStyle={styles.messageList}
+                            inverted={false}
+                            renderItem={({ item }) => (
+                                <View style={[
+                                    styles.msgBubble,
+                                    item.sender === 'worker' || item.senderType === 'worker' ? styles.rightBubble : styles.leftBubble
+                                ]}>
+                                    <Text style={[
+                                        styles.msgText,
+                                        item.sender === 'worker' || item.senderType === 'worker' ? { color: '#fff' } : { color: '#1E293B' }
+                                    ]}>
+                                        {item.message || item.text}
+                                    </Text>
+                                    <Text style={[
+                                        styles.timeText,
+                                        item.sender === 'worker' || item.senderType === 'worker' ? { color: 'rgba(255,255,255,0.7)' } : { color: '#64748B' }
+                                    ]}>
+                                        {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    </Text>
+                                </View>
+                            )}
+                        />
+                    )}
 
                     <SafeAreaView style={styles.chatInputArea}>
                         <TextInput
@@ -327,6 +465,7 @@ export default function WorkerJobDetails() {
                             placeholder="Type a message..."
                             value={messageText}
                             onChangeText={setMessageText}
+                            onSubmitEditing={handleSendMessage}
                         />
                         <TouchableOpacity onPress={handleSendMessage} style={styles.sendIconBtn}>
                             <Ionicons name="send" size={20} color="#fff" />
@@ -378,11 +517,13 @@ const styles = StyleSheet.create({
     chatContainer: { flex: 1, backgroundColor: '#fff' },
     chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15, borderBottomWidth: 1, borderBottomColor: '#F7FAFC' },
     chatHeaderText: { fontSize: 18, fontWeight: 'bold', color: '#1A202C' },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     messageList: { padding: 15 },
     msgBubble: { padding: 12, borderRadius: 20, marginBottom: 10, maxWidth: '80%' },
     rightBubble: { alignSelf: 'flex-end', backgroundColor: '#007AFF', borderBottomRightRadius: 4 },
-    leftBubble: { alignSelf: 'flex-start', backgroundColor: '#007AFF', borderBottomLeftRadius: 4 },
-    msgText: { fontSize: 16, color: '#fff' },
+    leftBubble: { alignSelf: 'flex-start', backgroundColor: '#E2E8F0', borderBottomLeftRadius: 4 },
+    msgText: { fontSize: 16, lineHeight: 20 },
+    timeText: { fontSize: 10, marginTop: 4 },
     chatInputArea: { flexDirection: 'row', padding: 10, borderTopWidth: 1, borderTopColor: '#EDF2F7', alignItems: 'center', backgroundColor: '#fff' },
     chatTextInput: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 25, paddingHorizontal: 20, height: 45, marginRight: 10, fontSize: 16 },
     sendIconBtn: { backgroundColor: '#007AFF', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' }

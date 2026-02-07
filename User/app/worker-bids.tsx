@@ -36,7 +36,7 @@ export default function WorkerBidsScreen() {
     const [bids, setBids] = useState<Bid[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:5000';
+    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
     useEffect(() => {
         if (jobId) fetchBids();

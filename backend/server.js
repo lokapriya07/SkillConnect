@@ -190,6 +190,11 @@ io.on('connection', (socket) => {
 
 // 5. ROUTES
 app.use('/api/auth', require('./routes/auth'));
+
+app.use('/api/chat', require('./routes/chatRoutes'));
+
+// Updated: Job Routes handle AI extraction and matching logic
+
 app.use('/api/jobs', require('./routes/jobRoutes'));
 app.use('/api/work', require('./routes/workRoutes'));
 app.use('/api/otp', require('./routes/otp'));

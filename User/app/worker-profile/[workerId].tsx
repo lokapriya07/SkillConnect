@@ -1,5 +1,9 @@
 
+
 import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
+
 import {
     View,
     Text,
@@ -13,11 +17,15 @@ import {
     Platform,
     TextInput,
     KeyboardAvoidingView,
-    FlatList
+    FlatList,
+    ActivityIndicator,
+    Alert
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppStore } from '@/lib/store';
 import { Colors } from "@/constants/Colors";
 
 const { width } = Dimensions.get('window');
@@ -29,9 +37,10 @@ export default function WorkerDetailScreen() {
     // Chat States
     const [chatVisible, setChatVisible] = useState(false);
     const [messageText, setMessageText] = useState('');
-    const [messages, setMessages] = useState([
-        { id: '1', text: 'Hello! How can I help you today?', sender: 'worker' }
-    ]);
+    const [messages, setMessages] = useState<any[]>([]);
+    const [loadingMessages, setLoadingMessages] = useState(false);
+    const [userData, setUserData] = useState<any>(null);
+    const [workerId, setWorkerId] = useState<string>('');
 
     const [readableAddress, setReadableAddress] = useState<string>('Loading location...');
 
@@ -43,8 +52,69 @@ export default function WorkerDetailScreen() {
         expertise,
         rating,
         location,
-        profilePic
+        profilePic,
+        workerProfileId
     } = params;
+
+    // Get user data from store on mount
+    useEffect(() => {
+        const unsubscribe = useAppStore.subscribe((state) => {
+            if (state.user) {
+                setUserData(state.user);
+            }
+        });
+        
+        // Also check initial state
+        const userState = useAppStore.getState();
+        if (userState.user) {
+            setUserData(userState.user);
+        }
+        
+        // Set worker ID from params
+        if (workerProfileId) {
+            setWorkerId(workerProfileId as string);
+        } else if (params.workerId) {
+            setWorkerId(params.workerId as string);
+        }
+        
+        return () => unsubscribe();
+    }, [workerProfileId, params.workerId]);
+
+    // Generate conversation ID
+    const getConversationId = useCallback(() => {
+        if (!userData?._id && !userData?.id || !workerId) return null;
+        const currentUserId = userData._id || userData.id;
+        const ids = [currentUserId, workerId].sort();
+        return ids.join('_');
+    }, [userData, workerId]);
+
+    // Fetch messages from backend
+    const fetchMessages = useCallback(async () => {
+        const conversationId = getConversationId();
+        if (!conversationId) return;
+
+        setLoadingMessages(true);
+        try {
+            const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/conversation/${conversationId}`);
+            const result = await response.json();
+            if (result.success) {
+                setMessages(result.messages);
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+            // Fallback to empty array on error
+            setMessages([]);
+        } finally {
+            setLoadingMessages(false);
+        }
+    }, [getConversationId]);
+
+    // Load messages when chat opens
+    useEffect(() => {
+        if (chatVisible && workerId) {
+            fetchMessages();
+        }
+    }, [chatVisible, workerId, fetchMessages]);
 
     // 1. Reverse Geocoding Logic for Coordinates
     useEffect(() => {
@@ -91,16 +161,69 @@ export default function WorkerDetailScreen() {
         return 'https://images.unsplash.com/photo-1517646281694-220a674de24c?w=800';
     };
 
-    // Chat logic
-    const handleSendMessage = () => {
-        if (messageText.trim().length > 0) {
-            const newMessage = {
-                id: Date.now().toString(),
-                text: messageText,
-                sender: 'user',
-            };
-            setMessages([...messages, newMessage]);
-            setMessageText('');
+    // Send message to backend
+    const handleSendMessage = async () => {
+        if (messageText.trim().length === 0) return;
+        const currentUserId = userData?._id || userData?.id;
+        if (!currentUserId || !workerId) {
+            Alert.alert('Error', 'Please login to send messages');
+            return;
+        }
+
+        const conversationId = getConversationId();
+        if (!conversationId) return;
+
+        const messageData = {
+            conversationId,
+            senderId: currentUserId,
+            senderType: 'user',
+            receiverId: workerId,
+            receiverType: 'worker',
+            message: messageText.trim(),
+            messageType: 'text'
+        };
+
+        try {
+            const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(messageData)
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                // Add message to local state
+                const newMessage = {
+                    id: result.message._id || Date.now().toString(),
+                    text: messageText.trim(),
+                    sender: 'user',
+                    createdAt: new Date().toISOString()
+                };
+                setMessages(prev => [...prev, newMessage]);
+                setMessageText('');
+            } else {
+                Alert.alert('Error', 'Failed to send message');
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            Alert.alert('Error', 'Network error. Please try again.');
+        }
+    };
+
+    // Mark messages as read
+    const markMessagesAsRead = async () => {
+        const conversationId = getConversationId();
+        const currentUserId = userData?._id || userData?.id;
+        if (!conversationId || !currentUserId) return;
+
+        try {
+            await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/read/${conversationId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: currentUserId, userType: 'user' })
+            });
+        } catch (error) {
+            console.error('Error marking messages as read:', error);
         }
     };
 
@@ -190,7 +313,15 @@ export default function WorkerDetailScreen() {
             <View style={styles.bottomBar}>
                 <TouchableOpacity 
                     style={styles.secondaryBtn} 
-                    onPress={() => setChatVisible(true)}
+                    onPress={() => {
+                        const currentUserId = userData?._id || userData?.id;
+                        if (!currentUserId) {
+                            Alert.alert('Login Required', 'Please login to chat with workers');
+                            return;
+                        }
+                        setChatVisible(true);
+                        markMessagesAsRead();
+                    }}
                 >
                     <Ionicons name="chatbubbles-outline" size={24} color={Colors.primary} />
                 </TouchableOpacity>
@@ -214,24 +345,34 @@ export default function WorkerDetailScreen() {
                         <View style={{ width: 28 }} />
                     </View>
 
-                    <FlatList
-                        data={messages}
-                        keyExtractor={(item) => item.id}
-                        contentContainerStyle={{ padding: 20 }}
-                        renderItem={({ item }) => (
-                            <View style={[
-                                styles.msgBubble,
-                                item.sender === 'user' ? styles.userBubble : styles.workerBubble
-                            ]}>
-                                <Text style={[
-                                    styles.msgText,
-                                    item.sender === 'user' ? { color: '#fff' } : { color: '#1E293B' }
+                    {loadingMessages ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color={Colors.primary} />
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={messages}
+                            keyExtractor={(item) => item.id || item._id}
+                            contentContainerStyle={{ padding: 20 }}
+                            inverted={false}
+                            renderItem={({ item }) => (
+                                <View style={[
+                                    styles.msgBubble,
+                                    item.sender === 'user' || item.senderType === 'user' ? styles.userBubble : styles.workerBubble
                                 ]}>
-                                    {item.text}
-                                </Text>
-                            </View>
-                        )}
-                    />
+                                    <Text style={[
+                                        styles.msgText,
+                                        item.sender === 'user' || item.senderType === 'user' ? { color: '#fff' } : { color: '#1E293B' }
+                                    ]}>
+                                        {item.message || item.text}
+                                    </Text>
+                                    <Text style={styles.timeText}>
+                                        {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    </Text>
+                                </View>
+                            )}
+                        />
+                    )}
 
                     <View style={styles.chatInputContainer}>
                         <TextInput
@@ -239,6 +380,7 @@ export default function WorkerDetailScreen() {
                             placeholder="Message..."
                             value={messageText}
                             onChangeText={setMessageText}
+                            onSubmitEditing={handleSendMessage}
                         />
                         <TouchableOpacity style={styles.sendIconBtn} onPress={handleSendMessage}>
                             <Ionicons name="send" size={20} color="#fff" />
@@ -312,10 +454,12 @@ const styles = StyleSheet.create({
     // Chat Specific Styles
     chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: '#fff' },
     chatTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     msgBubble: { padding: 12, borderRadius: 20, marginBottom: 10, maxWidth: '80%' },
     userBubble: { alignSelf: 'flex-end', backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
     workerBubble: { alignSelf: 'flex-start', backgroundColor: '#E2E8F0', borderBottomLeftRadius: 4 },
     msgText: { fontSize: 15, lineHeight: 20 },
+    timeText: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 4, alignSelf: 'flex-end' },
     chatInputContainer: { flexDirection: 'row', padding: 15, borderTopWidth: 1, borderTopColor: '#E2E8F0', backgroundColor: '#fff', alignItems: 'center' },
     chatInput: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 25, paddingHorizontal: 20, height: 45, marginRight: 10 },
     sendIconBtn: { backgroundColor: Colors.primary, width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' }
