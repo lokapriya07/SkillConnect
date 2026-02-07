@@ -72,6 +72,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // 4. ROUTES
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/chat', require('./routes/chatRoutes'));
 
 // Updated: Job Routes handle AI extraction and matching logic
 app.use('/api/jobs', require('./routes/jobRoutes'));
