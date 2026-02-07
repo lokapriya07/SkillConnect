@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
     View,
     Text,
@@ -14,7 +14,8 @@ import {
     Linking,
     Modal,
     FlatList,
-    SafeAreaView
+    SafeAreaView,
+    Vibration
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,6 +23,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { VideoView, useVideoPlayer } from "expo-video";
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
 import { Colors } from "@/constants/Colors";
 
 export default function WorkerJobDetails() {
@@ -47,6 +49,8 @@ export default function WorkerJobDetails() {
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [userData, setUserData] = useState<any>(null);
     const [userId, setUserId] = useState<string>('');
+    const [lastMessageId, setLastMessageId] = useState<string>('');
+    const [unreadCount, setUnreadCount] = useState(0);
 
     // --- Helpers ---
     const getFullUrl = (path: string) => {
@@ -103,12 +107,45 @@ export default function WorkerJobDetails() {
         getUserData();
     }, []);
 
-    // Fetch messages from backend
-    const fetchMessages = useCallback(async () => {
+    // Setup notification listener for new messages
+    useEffect(() => {
+        // Load unread count from storage
+        const loadUnreadCount = async () => {
+            try {
+                const count = await AsyncStorage.getItem('unreadMessagesCount');
+                if (count) {
+                    setUnreadCount(parseInt(count, 10));
+                }
+            } catch (error) {
+                console.error('Error loading unread count:', error);
+            }
+        };
+        loadUnreadCount();
+
+        // Setup notification listener
+        const notificationSubscription = Notifications.addNotificationReceivedListener(
+            async (notification) => {
+                // Vibrate on new message (sound is handled by the notification itself)
+                if (Platform.OS === 'android') {
+                    Vibration.vibrate([0, 500, 200, 500]);
+                }
+            }
+        );
+
+        return () => {
+            notificationSubscription.remove();
+        };
+    }, []);
+
+    const fetchMessages = useCallback(async (isInitialLoad = false) => {
         const conversationId = getConversationId();
         if (!conversationId) return;
 
-        setLoadingMessages(true);
+        // Only show loading spinner on the very first open
+        if (isInitialLoad && messages.length === 0) {
+            setLoadingMessages(true);
+        }
+
         try {
             const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/conversation/${conversationId}`);
             const result = await response.json();
@@ -117,17 +154,26 @@ export default function WorkerJobDetails() {
             }
         } catch (error) {
             console.error('Error fetching messages:', error);
-            setMessages([]);
         } finally {
             setLoadingMessages(false);
         }
-    }, [getConversationId]);
+    }, [getConversationId, messages.length]); // Added messages.length to deps
 
     // Load messages when chat opens
+    // Poll for new messages while chat is open
     useEffect(() => {
-        if (chatVisible && userId) {
-            fetchMessages();
-        }
+        if (!chatVisible || !userId) return;
+
+        // Call with true for initial load to show spinner once
+        fetchMessages(true);
+        markMessagesAsDelivered();
+        markMessagesAsRead();
+
+        const interval = setInterval(() => {
+            fetchMessages(false); // Silent update every 2s, no spinner
+        }, 2000);
+
+        return () => clearInterval(interval);
     }, [chatVisible, userId, fetchMessages]);
 
     const fetchJobDetails = async () => {
@@ -206,7 +252,7 @@ export default function WorkerJobDetails() {
     // Send message to backend
     const handleSendMessage = async () => {
         if (messageText.trim().length === 0) return;
-        if (!userData?.workerProfileId || !userId) {
+        if (!userData) {
             Alert.alert('Error', 'Please login to send messages');
             return;
         }
@@ -251,6 +297,22 @@ export default function WorkerJobDetails() {
         }
     };
 
+    // Mark messages as delivered (when receiver opens chat)
+    const markMessagesAsDelivered = async () => {
+        const conversationId = getConversationId();
+        if (!conversationId || !userData?.workerProfileId) return;
+
+        try {
+            await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/delivered/${conversationId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userData.workerProfileId, userType: 'worker' })
+            });
+        } catch (error) {
+            console.error('Error marking messages as delivered:', error);
+        }
+    };
+
     // Mark messages as read
     const markMessagesAsRead = async () => {
         const conversationId = getConversationId();
@@ -262,6 +324,13 @@ export default function WorkerJobDetails() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: userData.workerProfileId, userType: 'worker' })
             });
+            
+            // Clear unread count badge
+            setUnreadCount(0);
+            await AsyncStorage.setItem('unreadMessagesCount', '0');
+            if (Platform.OS === 'ios') {
+                await Notifications.setBadgeCountAsync(0);
+            }
         } catch (error) {
             console.error('Error marking messages as read:', error);
         }
@@ -389,15 +458,23 @@ export default function WorkerJobDetails() {
                             <TouchableOpacity 
                                 style={styles.secondaryBtn} 
                                 onPress={() => {
-                                    if (!userData?.workerProfileId) {
+                                    if (!userData) {
                                         Alert.alert('Login Required', 'Please login to chat with users');
                                         return;
                                     }
                                     setChatVisible(true);
+                                    markMessagesAsDelivered();
                                     markMessagesAsRead();
                                 }}
                             >
-                                <Ionicons name="chatbubbles-outline" size={24} color={Colors.primary || "#007AFF"} />
+                                <View>
+                                    <Ionicons name="chatbubbles-outline" size={24} color={Colors.primary || "#007AFF"} />
+                                    {unreadCount > 0 && (
+                                        <View style={styles.badgeContainer}>
+                                            <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                                        </View>
+                                    )}
+                                </View>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.submitBtn} onPress={submitBid}>
                                 <Text style={styles.submitBtnText}>Submit Bid</Text>
@@ -432,25 +509,47 @@ export default function WorkerJobDetails() {
                             keyExtractor={(item) => item.id || item._id}
                             contentContainerStyle={styles.messageList}
                             inverted={false}
-                            renderItem={({ item }) => (
-                                <View style={[
-                                    styles.msgBubble,
-                                    item.sender === 'worker' || item.senderType === 'worker' ? styles.rightBubble : styles.leftBubble
-                                ]}>
-                                    <Text style={[
-                                        styles.msgText,
-                                        item.sender === 'worker' || item.senderType === 'worker' ? { color: '#fff' } : { color: '#1E293B' }
-                                    ]}>
-                                        {item.message || item.text}
-                                    </Text>
-                                    <Text style={[
-                                        styles.timeText,
-                                        item.sender === 'worker' || item.senderType === 'worker' ? { color: 'rgba(255,255,255,0.7)' } : { color: '#64748B' }
-                                    ]}>
-                                        {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                                    </Text>
-                                </View>
-                            )}
+                                renderItem={({ item }) => {
+                                    // Check if the current user (worker) is the one who sent this message
+                                    const isMe = item.sender === 'worker' || item.senderType === 'worker';
+                                    const showTicks = isMe;
+                                    
+                                    return (
+                                        <View style={[
+                                            styles.msgBubble,
+                                            isMe ? styles.rightBubble : styles.leftBubble
+                                        ]}>
+                                            <Text style={[
+                                                styles.msgText,
+                                                isMe ? { color: '#fff' } : { color: '#1E293B' }
+                                            ]}>
+                                                {item.message || item.text}
+                                            </Text>
+                                            <View style={styles.msgFooter}>
+                                                <Text style={[
+                                                    styles.timeText,
+                                                    isMe ? { color: 'rgba(255,255,255,0.7)' } : { color: '#64748B' }
+                                                ]}>
+                                                    {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                </Text>
+                                                {showTicks && (
+                                                    <View style={styles.tickContainer}>
+                                                        {item.read ? (
+                                                            // Double blue tick - read
+                                                            <Ionicons name="checkmark-done" size={16} color="#4FC3F7" />
+                                                        ) : item.delivered ? (
+                                                            // Double gray tick - delivered
+                                                            <Ionicons name="checkmark-done" size={16} color="rgba(255,255,255,0.6)" />
+                                                        ) : (
+                                                            // Single gray tick - sent
+                                                            <Ionicons name="checkmark" size={16} color="rgba(255,255,255,0.6)" />
+                                                        )}
+                                                    </View>
+                                                )}
+                                            </View>
+                                        </View>
+                                    );
+                                }}
                         />
                     )}
 
@@ -521,5 +620,16 @@ const styles = StyleSheet.create({
     timeText: { fontSize: 10, marginTop: 4 },
     chatInputArea: { flexDirection: 'row', padding: 10, borderTopWidth: 1, borderTopColor: '#EDF2F7', alignItems: 'center', backgroundColor: '#fff' },
     chatTextInput: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 25, paddingHorizontal: 20, height: 45, marginRight: 10, fontSize: 16 },
-    sendIconBtn: { backgroundColor: '#007AFF', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' }
+    sendIconBtn: { backgroundColor: '#007AFF', width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' },
+    
+    // WhatsApp-style tick styles
+    msgFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4 },
+    tickContainer: { flexDirection: 'row', marginLeft: 6 },
+    singleTick: { marginLeft: 4 },
+    doubleTick: { flexDirection: 'row', marginLeft: 2 },
+    
+    // Notification Badge
+    badgeContainer: { position: 'absolute', top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
+    badgeText: { color: 'white', fontSize: 10, fontWeight: 'bold' }
 });
+

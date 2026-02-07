@@ -19,7 +19,6 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '@/lib/store';
 import { Colors } from "@/constants/Colors";
 
@@ -27,8 +26,7 @@ const { width } = Dimensions.get('window');
 
 export default function WorkerDetailScreen() {
     const router = useRouter();
-    const [modalVisible, setModalVisible] = useState(false);
-    
+
     // Chat States
     const [chatVisible, setChatVisible] = useState(false);
     const [messageText, setMessageText] = useState('');
@@ -36,7 +34,6 @@ export default function WorkerDetailScreen() {
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [userData, setUserData] = useState<any>(null);
     const [workerId, setWorkerId] = useState<string>('');
-
     const [readableAddress, setReadableAddress] = useState<string>('Loading location...');
 
     const params = useLocalSearchParams();
@@ -51,31 +48,24 @@ export default function WorkerDetailScreen() {
         workerProfileId
     } = params;
 
-    // Get user data from store on mount
+    // Get user data from store
     useEffect(() => {
         const unsubscribe = useAppStore.subscribe((state) => {
-            if (state.user) {
-                setUserData(state.user);
-            }
+            if (state.user) setUserData(state.user);
         });
-        
-        // Also check initial state
+
         const userState = useAppStore.getState();
-        if (userState.user) {
-            setUserData(userState.user);
-        }
-        
-        // Set worker ID from params
+        if (userState.user) setUserData(userState.user);
+
         if (workerProfileId) {
             setWorkerId(workerProfileId as string);
         } else if (params.workerId) {
             setWorkerId(params.workerId as string);
         }
-        
+
         return () => unsubscribe();
     }, [workerProfileId, params.workerId]);
 
-    // Generate conversation ID
     const getConversationId = useCallback(() => {
         if (!userData?._id && !userData?.id || !workerId) return null;
         const currentUserId = userData._id || userData.id;
@@ -83,42 +73,40 @@ export default function WorkerDetailScreen() {
         return ids.join('_');
     }, [userData, workerId]);
 
-    // Fetch messages from backend
-    const fetchMessages = useCallback(async () => {
+    const fetchMessages = useCallback(async (isInitialLoad = false) => {
         const conversationId = getConversationId();
         if (!conversationId) return;
 
-        setLoadingMessages(true);
+        if (isInitialLoad && messages.length === 0) setLoadingMessages(true);
+
         try {
             const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/conversation/${conversationId}`);
             const result = await response.json();
-            if (result.success) {
-                setMessages(result.messages);
-            }
+            if (result.success) setMessages(result.messages);
         } catch (error) {
             console.error('Error fetching messages:', error);
-            // Fallback to empty array on error
-            setMessages([]);
         } finally {
             setLoadingMessages(false);
         }
-    }, [getConversationId]);
+    }, [getConversationId, messages.length]);
 
-    // Load messages when chat opens
     useEffect(() => {
-        if (chatVisible && workerId) {
-            fetchMessages();
-        }
+        if (!chatVisible || !workerId) return;
+
+        fetchMessages(true);
+        markMessagesAsRead();
+
+        const interval = setInterval(() => fetchMessages(), 2000);
+        return () => clearInterval(interval);
     }, [chatVisible, workerId, fetchMessages]);
 
-    // 1. Reverse Geocoding Logic for Coordinates
+    // Reverse Geocoding
     useEffect(() => {
         async function getReadableLocation() {
             if (!location) {
                 setReadableAddress('Location not provided');
                 return;
             }
-
             try {
                 const parsedLoc = JSON.parse(location as string);
                 const lat = parsedLoc.latitude || (parsedLoc.coordinates && parsedLoc.coordinates[1]);
@@ -129,44 +117,32 @@ export default function WorkerDetailScreen() {
                         latitude: parseFloat(lat),
                         longitude: parseFloat(lng)
                     });
-
                     if (reverse.length > 0) {
                         const { city, name: street, district } = reverse[0];
                         setReadableAddress(`${street || district || ''}, ${city || ''}`);
                     }
-                } else {
-                    setReadableAddress('Location coordinates missing');
                 }
             } catch (error) {
                 setReadableAddress('Location shared on hire');
             }
         }
-
         getReadableLocation();
     }, [location]);
 
-    // 2. Skill Parsing
     const skillArray = typeof skills === 'string' ? skills.split(',') : ['Service Provider'];
 
     const getExpertiseBanner = (exp: any) => {
         const type = String(exp || '').toLowerCase();
         if (type.includes('plumb')) return 'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=800';
         if (type.includes('elect')) return 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800';
-        if (type.includes('clean')) return 'https://images.unsplash.com/photo-1581578731522-745d05db9ad0?w=800';
         return 'https://images.unsplash.com/photo-1517646281694-220a674de24c?w=800';
     };
 
-    // Send message to backend
     const handleSendMessage = async () => {
         if (messageText.trim().length === 0) return;
         const currentUserId = userData?._id || userData?.id;
-        if (!currentUserId || !workerId) {
-            Alert.alert('Error', 'Please login to send messages');
-            return;
-        }
-
         const conversationId = getConversationId();
-        if (!conversationId) return;
+        if (!currentUserId || !conversationId) return;
 
         const messageData = {
             conversationId,
@@ -184,42 +160,32 @@ export default function WorkerDetailScreen() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(messageData)
             });
-
             const result = await response.json();
             if (result.success) {
-                // Add message to local state
-                const newMessage = {
-                    id: result.message._id || Date.now().toString(),
+                setMessages(prev => [...prev, {
+                    id: result.message._id,
                     text: messageText.trim(),
                     sender: 'user',
                     createdAt: new Date().toISOString()
-                };
-                setMessages(prev => [...prev, newMessage]);
+                }]);
                 setMessageText('');
-            } else {
-                Alert.alert('Error', 'Failed to send message');
             }
         } catch (error) {
-            console.error('Error sending message:', error);
-            Alert.alert('Error', 'Network error. Please try again.');
+            Alert.alert('Error', 'Network error.');
         }
     };
 
-    // Mark messages as read
     const markMessagesAsRead = async () => {
         const conversationId = getConversationId();
         const currentUserId = userData?._id || userData?.id;
         if (!conversationId || !currentUserId) return;
-
         try {
             await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/chat/read/${conversationId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: currentUserId, userType: 'user' })
             });
-        } catch (error) {
-            console.error('Error marking messages as read:', error);
-        }
+        } catch (e) { }
     };
 
     return (
@@ -227,14 +193,10 @@ export default function WorkerDetailScreen() {
             <StatusBar barStyle="light-content" translucent />
 
             <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-                {/* Visual Header Section */}
+                {/* Header Section */}
                 <View style={styles.header}>
-                    <Image
-                        source={{ uri: getExpertiseBanner(expertise) }}
-                        style={styles.banner}
-                    />
+                    <Image source={{ uri: getExpertiseBanner(expertise) }} style={styles.banner} />
                     <View style={styles.gradientOverlay} />
-
                     <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
                         <Ionicons name="chevron-back" size={24} color="black" />
                     </TouchableOpacity>
@@ -254,7 +216,7 @@ export default function WorkerDetailScreen() {
                     </View>
                 </View>
 
-                {/* Main Content Body */}
+                {/* Content */}
                 <View style={styles.content}>
                     <View style={styles.statsRow}>
                         <View style={styles.statCard}>
@@ -288,50 +250,44 @@ export default function WorkerDetailScreen() {
                             ))}
                         </View>
                     </View>
-
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Work Schedule</Text>
-                        <View style={styles.availGrid}>
-                            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
-                                <View key={i} style={[styles.dayCircle, i < 5 ? styles.dayOn : styles.dayOff]}>
-                                    <Text style={styles.dayText}>{day}</Text>
-                                </View>
-                            ))}
-                            <Text style={styles.availStatus}>• Usually active now</Text>
-                        </View>
-                    </View>
                 </View>
                 <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* Fixed Bottom Bar */}
+            {/* Bottom Bar - FIXED NAVIGATION */}
             <View style={styles.bottomBar}>
-                <TouchableOpacity 
-                    style={styles.secondaryBtn} 
+                <TouchableOpacity
+                    style={styles.secondaryBtn}
                     onPress={() => {
-                        const currentUserId = userData?._id || userData?.id;
-                        if (!currentUserId) {
-                            Alert.alert('Login Required', 'Please login to chat with workers');
-                            return;
-                        }
+                        if (!userData) return Alert.alert('Login Required', 'Please login to chat');
                         setChatVisible(true);
-                        markMessagesAsRead();
                     }}
                 >
                     <Ionicons name="chatbubbles-outline" size={24} color={Colors.primary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.primaryBtn} onPress={() => setModalVisible(true)}>
+
+                <TouchableOpacity
+                    style={styles.primaryBtn}
+                    onPress={() => {
+                        router.push({
+                            pathname: '/checkout',
+                            params: {
+                                workerId: workerId,
+                                workerName: name,
+                                amount: bidAmount,
+                                expertise: expertise
+                            }
+                        });
+                    }}
+                >
                     <Text style={styles.primaryBtnText}>Hire {name}</Text>
                     <FontAwesome5 name="user-check" size={16} color="#fff" />
                 </TouchableOpacity>
             </View>
 
-            {/* Chat Modal Window */}
+            {/* Chat Modal */}
             <Modal visible={chatVisible} animationType="slide" presentationStyle="pageSheet">
-                <KeyboardAvoidingView 
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-                    style={{ flex: 1, backgroundColor: '#F8FAFC' }}
-                >
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
                     <View style={styles.chatHeader}>
                         <TouchableOpacity onPress={() => setChatVisible(false)}>
                             <Ionicons name="chevron-down" size={28} color="#1E293B" />
@@ -341,68 +297,36 @@ export default function WorkerDetailScreen() {
                     </View>
 
                     {loadingMessages ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="small" color={Colors.primary} />
-                        </View>
+                        <ActivityIndicator style={{ flex: 1 }} color={Colors.primary} />
                     ) : (
                         <FlatList
                             data={messages}
                             keyExtractor={(item) => item.id || item._id}
                             contentContainerStyle={{ padding: 20 }}
-                            inverted={false}
-                            renderItem={({ item }) => (
-                                <View style={[
-                                    styles.msgBubble,
-                                    item.sender === 'user' || item.senderType === 'user' ? styles.userBubble : styles.workerBubble
-                                ]}>
-                                    <Text style={[
-                                        styles.msgText,
-                                        item.sender === 'user' || item.senderType === 'user' ? { color: '#fff' } : { color: '#1E293B' }
-                                    ]}>
-                                        {item.message || item.text}
-                                    </Text>
-                                    <Text style={styles.timeText}>
-                                        {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                                    </Text>
-                                </View>
-                            )}
+                            renderItem={({ item }) => {
+                                const isUser = item.sender === 'user' || item.senderType === 'user';
+                                return (
+                                    <View style={[styles.msgBubble, isUser ? styles.userBubble : styles.workerBubble]}>
+                                        <Text style={[styles.msgText, isUser ? { color: '#fff' } : { color: '#1E293B' }]}>{item.message || item.text}</Text>
+                                    </View>
+                                );
+                            }}
                         />
                     )}
 
                     <View style={styles.chatInputContainer}>
-                        <TextInput
-                            style={styles.chatInput}
-                            placeholder="Message..."
-                            value={messageText}
-                            onChangeText={setMessageText}
-                            onSubmitEditing={handleSendMessage}
-                        />
+                        <TextInput style={styles.chatInput} placeholder="Message..." value={messageText} onChangeText={setMessageText} />
                         <TouchableOpacity style={styles.sendIconBtn} onPress={handleSendMessage}>
                             <Ionicons name="send" size={20} color="#fff" />
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
-
-            {/* Hiring Modal */}
-            <Modal transparent visible={modalVisible} animationType="fade">
-                <View style={styles.modalBg}>
-                    <View style={styles.modalCard}>
-                        <View style={styles.checkCircle}>
-                            <Ionicons name="checkmark" size={50} color="#fff" />
-                        </View>
-                        <Text style={styles.mTitle}>Request Sent!</Text>
-                        <Text style={styles.mDesc}>We've notified {name}. You can start chatting once they accept the job.</Text>
-                        <TouchableOpacity style={styles.mBtn} onPress={() => { setModalVisible(false); router.back(); }}>
-                            <Text style={styles.mBtnText}>Understood</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
         </View>
     );
 }
 
+// ... styles remain the same as your provided code
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
     header: { height: 320, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 40 },
@@ -457,5 +381,11 @@ const styles = StyleSheet.create({
     timeText: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 4, alignSelf: 'flex-end' },
     chatInputContainer: { flexDirection: 'row', padding: 15, borderTopWidth: 1, borderTopColor: '#E2E8F0', backgroundColor: '#fff', alignItems: 'center' },
     chatInput: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 25, paddingHorizontal: 20, height: 45, marginRight: 10 },
-    sendIconBtn: { backgroundColor: Colors.primary, width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' }
+    sendIconBtn: { backgroundColor: Colors.primary, width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' },
+    
+    // WhatsApp-style tick styles
+    msgFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4 },
+    tickContainer: { flexDirection: 'row', marginLeft: 6 },
+    singleTick: { marginLeft: 4 },
+    doubleTick: { flexDirection: 'row', marginLeft: 2 }
 });

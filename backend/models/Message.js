@@ -33,9 +33,13 @@ const MessageSchema = new mongoose.Schema({
         enum: ['text', 'image', 'audio', 'video'],
         default: 'text'
     },
+    delivered: {
+        type: Boolean,
+        default: false  // Single tick - delivered to server
+    },
     read: {
         type: Boolean,
-        default: false
+        default: false  // Double tick - read by receiver
     },
     createdAt: {
         type: Date,

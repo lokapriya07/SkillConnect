@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Message = require('../models/Message');
+const { sendPushNotification } = require('./notificationRoutes');
 
 // Helper to generate unique conversation ID
 const generateConversationId = (userId, workerId) => {
@@ -10,7 +11,7 @@ const generateConversationId = (userId, workerId) => {
 // Send a message
 router.post('/send', async (req, res) => {
     try {
-        const { conversationId, senderId, senderType, receiverId, receiverType, message, messageType } = req.body;
+        const { conversationId, senderId, senderType, receiverId, receiverType, message, messageType, senderName } = req.body;
 
         const newMessage = new Message({
             conversationId: conversationId || generateConversationId(senderId, receiverId),
@@ -19,10 +20,24 @@ router.post('/send', async (req, res) => {
             receiverId,
             receiverType,
             message,
-            messageType: messageType || 'text'
+            messageType: messageType || 'text',
+            delivered: true  // Message is delivered to server when created
         });
 
         const savedMessage = await newMessage.save();
+
+        // Send push notification to receiver
+        const notificationTitle = senderType === 'worker' ? 'New message from worker' : 'New message from user';
+        const notificationBody = message.length > 50 ? message.substring(0, 50) + '...' : message;
+        
+        await sendPushNotification(receiverId, notificationTitle, notificationBody, {
+            conversationId: savedMessage.conversationId,
+            senderId,
+            senderType,
+            senderName: senderName || 'Someone',
+            messageId: savedMessage._id.toString()
+        });
+
         res.status(201).json({ success: true, message: savedMessage });
     } catch (error) {
         console.error('Error sending message:', error);
@@ -93,6 +108,30 @@ router.get('/conversations/:id/:type', async (req, res) => {
     }
 });
 
+// Mark messages as delivered (when receiver opens chat)
+router.put('/delivered/:conversationId', async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { userId, userType } = req.body;
+
+        // Mark all messages from the other user as delivered
+        await Message.updateMany(
+            { 
+                conversationId, 
+                receiverId: userId, 
+                receiverType: userType, 
+                delivered: false 
+            },
+            { $set: { delivered: true } }
+        );
+
+        res.json({ success: true, message: 'Messages marked as delivered' });
+    } catch (error) {
+        console.error('Error marking messages as delivered:', error);
+        res.status(500).json({ success: false, error: 'Failed to mark messages as delivered' });
+    }
+});
+
 // Mark messages as read
 router.put('/read/:conversationId', async (req, res) => {
     try {
@@ -101,7 +140,7 @@ router.put('/read/:conversationId', async (req, res) => {
 
         await Message.updateMany(
             { conversationId, receiverId: userId, receiverType: userType, read: false },
-            { $set: { read: true } }
+            { $set: { read: true, delivered: true } }
         );
 
         res.json({ success: true, message: 'Messages marked as read' });

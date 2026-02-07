@@ -226,6 +226,22 @@ router.get('/all-jobs', async (req, res) => {
     }
 });
 // SUBMIT A BID (Worker side)
+// DELETE all jobs
+router.delete('/delete-all-jobs', async (req, res) => {
+    try {
+        // .deleteMany({}) with an empty object deletes every record in the collection
+        const result = await JobRequest.deleteMany({});
+
+        res.status(200).json({
+            success: true,
+            message: "All jobs have been deleted successfully",
+            deletedCount: result.deletedCount
+        });
+    } catch (error) {
+        console.error("❌ Delete All Jobs Error:", error);
+        res.status(500).json({ error: "Failed to delete jobs" });
+    }
+});
 router.post('/submit-bid', async (req, res) => {
     try {
         const { jobId, workerId, bidAmount } = req.body;
