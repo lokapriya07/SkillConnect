@@ -326,6 +326,7 @@ export default function WorkerDetailScreen() {
     );
 }
 
+// Ensure you have your styles definition here (from your previous code)
 // ... styles remain the same as your provided code
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
@@ -362,13 +363,6 @@ const styles = StyleSheet.create({
     secondaryBtn: { width: 60, height: 60, borderRadius: 15, borderColor: '#E2E8F0', borderWidth: 1, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
     primaryBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
     primaryBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-    modalBg: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.75)', justifyContent: 'center', alignItems: 'center' },
-    modalCard: { width: '85%', backgroundColor: '#fff', borderRadius: 30, padding: 30, alignItems: 'center' },
-    checkCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-    mTitle: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
-    mDesc: { textAlign: 'center', color: '#64748B', marginTop: 10, marginBottom: 25, lineHeight: 20 },
-    mBtn: { backgroundColor: '#1E293B', paddingHorizontal: 40, paddingVertical: 15, borderRadius: 15 },
-    mBtnText: { color: '#fff', fontWeight: 'bold' },
 
     // Chat Specific Styles
     chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: '#fff' },

@@ -293,5 +293,22 @@ router.get('/:jobId/bids', async (req, res) => {
         res.status(500).json({ error: "Failed to fetch bids" });
     }
 });
+// GET CHAT HISTORY FOR A SPECIFIC JOB
+router.get('/:jobId/chat/:user1/:user2', async (req, res) => {
+    try {
+        const { jobId, user1, user2 } = req.params;
+        const messages = await Message.find({
+            jobId,
+            $or: [
+                { sender: user1, receiver: user2 },
+                { sender: user2, receiver: user1 }
+            ]
+        }).sort({ timestamp: 1 });
+
+        res.status(200).json(messages);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to load chat" });
+    }
+});
 
 module.exports = router;
