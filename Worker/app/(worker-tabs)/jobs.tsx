@@ -404,7 +404,7 @@ const disputedJobs = [
 
 export default function ActiveJobsPage() {
   const [activeTab, setActiveTab] = useState("active");
-  const [selectedJob, setSelectedJob] = useState<any | null>(null);
+  const [selectedJob, setSelectedJob] = useState<DisplayJob | null>(null);
   const [assignedJobs, setAssignedJobs] = useState<AssignedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
@@ -471,7 +471,7 @@ export default function ActiveJobsPage() {
         
         // Update selected job if it's the same job
         if (selectedJob?.id === job.id) {
-          setSelectedJob(prev => ({ ...prev, status: 'in_progress' }));
+          setSelectedJob((prev: DisplayJob | null) => prev ? { ...prev, status: 'in_progress' } : null);
         }
         
         Alert.alert('Success', 'Job accepted successfully! It is now in progress.');
@@ -793,8 +793,8 @@ export default function ActiveJobsPage() {
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Client Information</Text>
                 <View style={styles.clientInfoRow}>
-                  <View style={[styles.clientAvatarLarge, { backgroundColor: getServiceColor(selectedJob?.title) + '20' }]}>
-                    <User size={24} color={getServiceColor(selectedJob?.title)} />
+                  <View style={[styles.clientAvatarLarge, { backgroundColor: getServiceColor(selectedJob?.title || '') + '20' }]}>
+                    <User size={24} color={getServiceColor(selectedJob?.title || '')} />
                   </View>
                   <View>
                     <Text style={styles.clientNameLarge}>{selectedJob?.userName || selectedJob?.client}</Text>
