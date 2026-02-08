@@ -23,8 +23,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { VideoView, useVideoPlayer } from "expo-video";
 import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
 import { Colors } from "@/constants/Colors";
+
+// Notifications are not supported in Expo Go with SDK 53
+// We'll handle this gracefully
+let NotificationsModule: any = null;
+try {
+    NotificationsModule = require('expo-notifications');
+} catch (e) {
+    console.log('Notifications not available (Expo Go)');
+}
 
 export default function WorkerJobDetails() {
     const { jobId } = useLocalSearchParams();
@@ -109,6 +117,12 @@ export default function WorkerJobDetails() {
 
     // Setup notification listener for new messages
     useEffect(() => {
+        // Skip notifications setup if module not available (Expo Go)
+        if (!NotificationsModule) {
+            console.log('Notifications not available (Expo Go)');
+            return;
+        }
+
         // Load unread count from storage
         const loadUnreadCount = async () => {
             try {
@@ -122,10 +136,9 @@ export default function WorkerJobDetails() {
         };
         loadUnreadCount();
 
-        // Setup notification listener
-        const notificationSubscription = Notifications.addNotificationReceivedListener(
-            async (notification) => {
-                // Vibrate on new message (sound is handled by the notification itself)
+        const notificationSubscription = NotificationsModule.addNotificationReceivedListener(
+            async (notification: any) => {
+                // Vibrate on new message
                 if (Platform.OS === 'android') {
                     Vibration.vibrate([0, 500, 200, 500]);
                 }
@@ -328,8 +341,8 @@ export default function WorkerJobDetails() {
             // Clear unread count badge
             setUnreadCount(0);
             await AsyncStorage.setItem('unreadMessagesCount', '0');
-            if (Platform.OS === 'ios') {
-                await Notifications.setBadgeCountAsync(0);
+            if (Platform.OS === 'ios' && NotificationsModule) {
+                await NotificationsModule.setBadgeCountAsync(0);
             }
         } catch (error) {
             console.error('Error marking messages as read:', error);

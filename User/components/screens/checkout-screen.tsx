@@ -32,7 +32,7 @@ const paymentMethods = [
 
 export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProps) {
   // 1. Get data from Global Store
-  const { cart, getCartTotal, currentLocation, addBooking, clearCart, activeJobs } = useAppStore()
+  const { cart, getCartTotal, currentLocation, addBooking, clearCart, activeJobs, clearJobs } = useAppStore()
   
   // Get the first/most recent active job for checkout
   const activeJob = activeJobs[0]
@@ -73,14 +73,17 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
 
   const handleConfirmBooking = () => {
     if (selectedDate && selectedTime) {
+      // Determine if this is truly a bid flow (user submitted a custom bid amount)
+      const hasBidAmount = bidAmount && bidAmount !== "" && parseFloat(bidAmount) > 0;
+      
       const newBooking = {
         id: Math.random().toString(36).substr(2, 9),
-        items: isBidFlow
+        items: hasBidAmount && activeJob?.description
           ? [
               {
                 service: {
                   id: "bid-" + Date.now(),
-                  name: `Worker Bid: ${activeJob?.description?.substring(0, 20)}...`,
+                  name: activeJob?.description || "Custom Service Request",
                   description: activeJob?.description || "",
                   price: subtotal,
                   duration: "N/A",
@@ -101,7 +104,8 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
       }
 
       addBooking(newBooking)
-      if (!isBidFlow) clearCart()
+      clearCart()
+      clearJobs() // Clear active jobs to prevent old job data from interfering with future bookings
       onConfirm()
     }
   }

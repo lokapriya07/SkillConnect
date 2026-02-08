@@ -40,12 +40,8 @@ export interface Booking {
   date: string
   time: string
   address: string
-  
-  professional?: {
-    name: string
-    rating: number
-    image: string
-  }
+  serviceCategory?: string
+  assignedWorker?: AssignedWorker
 }
 
 
@@ -55,15 +51,31 @@ export interface WorkerProfile {
   rating: number;
   experience: number;
   skills: string[];
-  profilePic?: string; // Changed from 'image' to match your backend .select()
-  expertise?: string;  // Added to match your backend .select()
+  profilePic?: string;
+  expertise?: string;
   location?: {
     type?: string;
-    coordinates?: [number, number]; // [longitude, latitude]
+    coordinates?: [number, number];
     latitude?: number;
     longitude?: number;
   };
 }
+
+// Assigned worker info for bookings
+export interface AssignedWorker {
+  _id: string;
+  userId: string;
+  name: string;
+  title?: string;
+  profilePic?: string;
+  rating: number;
+  experience: number;
+  skills: string[];
+  city?: string;
+  hourlyRate?: number;
+  matchScore?: number;
+}
+
 // Updated Job Interface with unique ID
 export interface ActiveJob {
   id: string;
@@ -96,7 +108,8 @@ interface AppState {
 
   // Actions
   fetchActiveJobs: () => Promise<void>;
-  addActiveJob: (job: ActiveJob) => void; // Changed to add to array
+  addActiveJob: (job: ActiveJob) => void;
+  assignWorker: (bookingId: string, worker: AssignedWorker) => void;
   removeJob: (id: string) => void;
   clearJobs: () => void;
   setAuthenticated: (auth: boolean) => void
@@ -132,6 +145,16 @@ export const useAppStore = create<AppState>()(
       addActiveJob: (job) => set((state) => ({
         activeJobs: [job, ...state.activeJobs]
       })),
+
+      // Assign worker to a booking
+      assignWorker: (bookingId, worker) => set((state) => ({
+        bookings: state.bookings.map((booking) =>
+          booking.id === bookingId 
+            ? { ...booking, assignedWorker: worker }
+            : booking
+        )
+      })),
+
       // Inside your useAppStore fetchActiveJobs function:
       fetchActiveJobs: async () => {
         const user = get().user;
@@ -141,7 +164,8 @@ export const useAppStore = create<AppState>()(
 
         try {
           // Note: use the new /user/:userId endpoint
-          const response = await fetch(`http://192.168.0.2:5000/api/jobs/user/${userId}`);
+          const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.9:5000/api";
+          const response = await fetch(`${API_URL}/jobs/user/${userId}`);
           const data = await response.json();
 
           if (data.success) {

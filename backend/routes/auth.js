@@ -201,11 +201,22 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid Credentials" });
 
+    // Get worker profile ID if logging in as worker
+    let workerProfileId = null;
+    if (role === 'worker') {
+      const Work = require('../models/Work');
+      const workerProfile = await Work.findOne({ userId: user._id });
+      if (workerProfile) {
+        workerProfileId = workerProfile._id;
+      }
+    }
+
     // SUCCESS: Return user info AND the unique ID
     res.json({
       success: true,
       user: {
         id: user._id, // CRITICAL: This allows profile saving
+        workerProfileId: workerProfileId, // Work model's _id for assigned jobs lookup
         name: user.name,
         email: user.email,
         role: user.role,

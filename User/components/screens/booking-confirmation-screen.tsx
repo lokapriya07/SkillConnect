@@ -1,17 +1,27 @@
 import { Colors } from "@/constants/Colors"
-import { useAppStore } from "@/lib/store"
+import { useAppStore, AssignedWorker } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
-import { useEffect, useRef } from "react"
-import { Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { useEffect, useRef, useState } from "react"
+import { Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert } from "react-native"
+
+// Backend API URL - Update this to match your server IP
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.9:5000";
 
 interface BookingConfirmationScreenProps {
     onGoHome: () => void
     onViewBookings: () => void
+    onOpenChat?: (worker: AssignedWorker) => void
 }
 
-export default function BookingConfirmationScreen({ onGoHome, onViewBookings }: BookingConfirmationScreenProps) {
-    // FIX 1: Retrieve 'bookings' array and get the first item (latest booking)
+export default function BookingConfirmationScreen({ onGoHome, onViewBookings, onOpenChat }: BookingConfirmationScreenProps) {
     const currentBooking = useAppStore((state) => state.bookings[0])
+    const currentLocation = useAppStore((state) => state.currentLocation)
+    const user = useAppStore((state) => state.user)
+    const assignWorker = useAppStore((state) => state.assignWorker)
+    
+    const [assignedWorker, setAssignedWorker] = useState<AssignedWorker | null>(null)
+    const [loadingWorker, setLoadingWorker] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
     const scaleAnim = useRef(new Animated.Value(0)).current
     const fadeAnim = useRef(new Animated.Value(0)).current
@@ -40,6 +50,94 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings }: 
         ]).start()
     }, [])
 
+    // Fetch assigned worker when component mounts
+    // Replace your existing useEffect with this:
+    useEffect(() => {
+        if (currentBooking?.id) {
+            fetchAssignedWorker();
+        }
+    }, [currentBooking?.id]); // Only re-run if the ID changes, not the whole object
+
+    const fetchAssignedWorker = async () => {
+        if (!currentBooking) {
+            setLoadingWorker(false)
+            return
+        }
+
+        try {
+            setLoadingWorker(true)
+            setError(null)
+
+            // Get service category from booking items
+            const serviceCategory = currentBooking.items[0]?.service?.category || 
+                                   currentBooking.items[0]?.service?.name?.toLowerCase() || 
+                                   'default'
+
+            const userId = user?._id || user?.id
+            const userLatitude = currentLocation?.coordinates?.lat || 28.6139 // Default to Delhi
+            const userLongitude = currentLocation?.coordinates?.lng || 77.2090
+
+            console.log('Fetching worker with:', {
+                serviceCategory,
+                userId,
+                userLatitude,
+                userLongitude
+            })
+
+            const response = await fetch(`${API_URL}/api/jobs/assign-worker`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    serviceCategory,
+                    serviceName: currentBooking.items[0]?.service?.name || serviceCategory,
+                    userId,
+                    userLatitude,
+                    userLongitude,
+                    requiredSkills: currentBooking.items[0]?.service?.name ? 
+                        [currentBooking.items[0].service.name.toLowerCase()] : []
+                }),
+            })
+
+            const data = await response.json()
+            console.log('API Response:', data)
+
+            if (data.success && data.worker) {
+                const worker: AssignedWorker = {
+                    _id: data.worker._id,
+                    userId: data.worker.userId,
+                    name: data.worker.name,
+                    title: data.worker.title,
+                    profilePic: data.worker.profilePic,
+                    rating: data.worker.rating,
+                    experience: data.worker.experience,
+                    skills: data.worker.skills,
+                    city: data.worker.city,
+                    hourlyRate: data.worker.hourlyRate,
+                    matchScore: data.worker.matchScore
+                }
+                
+                setAssignedWorker(worker)
+                
+                // Also update in store for persistence
+                if (currentBooking.id) {
+                    assignWorker(currentBooking.id, worker)
+                }
+            } else if (data.totalWorkersFound === 0 || data.error) {
+                // No workers found - set null to show no worker message
+                setError(data.message || 'No workers available for this service')
+            } else {
+                setError('Unable to fetch worker information')
+            }
+        } catch (err) {
+            console.error('Error fetching worker:', err)
+            setError('Failed to connect to server. Please check your connection.')
+        } finally {
+            setLoadingWorker(false)
+        }
+    }
+
     const formatDate = (date: Date) => {
         return date.toLocaleDateString("en-US", {
             weekday: "long",
@@ -49,8 +147,19 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings }: 
         })
     }
 
-    // Helper to safely access properties that might not be in the strict Interface yet
-    const safeBooking = currentBooking as any;
+    const safeBooking = currentBooking as any
+
+    const handleChatPress = () => {
+        if (assignedWorker && onOpenChat) {
+            onOpenChat(assignedWorker)
+        } else {
+            Alert.alert("Chat Feature", "Chat with your assigned worker coming soon!")
+        }
+    }
+
+    const handleCallPress = () => {
+        Alert.alert("Call Feature", "Calling your assigned worker...")
+    }
 
     return (
         <View style={styles.container}>
@@ -91,7 +200,6 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings }: 
                             <Text style={styles.detailValue}>
                                 {currentBooking?.date ? formatDate(new Date(currentBooking.date)) : "December 5, 2024"}
                             </Text>
-                            {/* FIX 2: Use 'time' property (standardized) or fallback to timeSlot */}
                             <Text style={styles.detailSubvalue}>{currentBooking?.time || safeBooking?.timeSlot || "10:00 AM"}</Text>
                         </View>
                     </View>
@@ -147,31 +255,57 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings }: 
                     ]}
                 >
                     <Text style={styles.professionalTitle}>Assigned Professional</Text>
-                    <View style={styles.professionalInfo}>
-                        <Image
-                            source={{
-                                uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-                            }}
-                            style={styles.professionalImage}
-                        />
-                        <View style={styles.professionalDetails}>
-                            <Text style={styles.professionalName}>John Smith</Text>
-                            <View style={styles.ratingContainer}>
-                                <Ionicons name="star" size={14} color="#FFB800" />
-                                <Text style={styles.ratingText}>4.9 (200+ services)</Text>
+                    
+                    {loadingWorker ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color={Colors.primary} />
+                            <Text style={styles.loadingText}>Finding best worker for you...</Text>
+                        </View>
+                    ) : error ? (
+                        <View style={styles.errorContainer}>
+                            <Ionicons name="warning-outline" size={24} color="#FFB800" />
+                            <Text style={styles.errorText}>{error}</Text>
+                            <TouchableOpacity style={styles.retryButton} onPress={fetchAssignedWorker}>
+                                <Text style={styles.retryButtonText}>Retry</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : assignedWorker ? (
+                        <View style={styles.professionalInfo}>
+                            <Image
+                                source={{
+                                    uri: assignedWorker.profilePic || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+                                }}
+                                style={styles.professionalImage}
+                            />
+                            <View style={styles.professionalDetails}>
+                                <Text style={styles.professionalName}>{assignedWorker.name}</Text>
+                                <View style={styles.ratingContainer}>
+                                    <Ionicons name="star" size={14} color="#FFB800" />
+                                    <Text style={styles.ratingText}>{assignedWorker.rating?.toFixed(1) || "0.0"} ({assignedWorker.experience || 0} jobs)</Text>
+                                </View>
+                                <Text style={styles.professionalExp}>
+                                    {assignedWorker.experience || 0} years experience
+                                </Text>
+                                {!!assignedWorker.matchScore && (
+                                    <View style={styles.matchBadge}>
+                                        <Text style={styles.matchText}>{assignedWorker.matchScore}% Match</Text>
+                                    </View>
+                                )}
                             </View>
-                            <Text style={styles.professionalExp}>5 years experience</Text>
+                            <View style={styles.buttonGroup}>
+                                <TouchableOpacity style={styles.callButton} onPress={handleCallPress}>
+                                    <Ionicons name="call" size={20} color={Colors.white} />
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.chatButton} onPress={handleChatPress}>
+                                    <Ionicons name="chatbubble-ellipses" size={20} color={Colors.white} />
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                        <View style={styles.buttonGroup}>
-                            <TouchableOpacity style={styles.callButton}>
-                                <Ionicons name="call" size={20} color={Colors.white} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.chatButton}>
-                                <Ionicons name="chatbubble-ellipses" size={20} color={Colors.white} />
-                            </TouchableOpacity>
+                    ) : (
+                        <View style={styles.noWorkerContainer}>
+                            <Text style={styles.noWorkerText}>No worker assigned yet</Text>
                         </View>
-
-                    </View>
+                    )}
                 </Animated.View>
 
                 {/* Tips Card */}
@@ -372,6 +506,19 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Colors.textSecondary,
     },
+    matchBadge: {
+        backgroundColor: "#E8F5E9",
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+        marginTop: 4,
+        alignSelf: 'flex-start',
+    },
+    matchText: {
+        fontSize: 10,
+        color: "#4CAF50",
+        fontWeight: "600",
+    },
     callButton: {
         width: 44,
         height: 44,
@@ -453,7 +600,45 @@ const styles = StyleSheet.create({
     },
     buttonGroup: {
         flexDirection: "row",
-        gap: 12, // 12px space between call and chat
+        gap: 12,
     },
-
+    loadingContainer: {
+        alignItems: "center",
+        padding: 20,
+    },
+    loadingText: {
+        fontSize: 14,
+        color: Colors.textSecondary,
+        marginTop: 8,
+    },
+    errorContainer: {
+        alignItems: "center",
+        padding: 20,
+    },
+    errorText: {
+        fontSize: 14,
+        color: Colors.textSecondary,
+        marginTop: 8,
+        textAlign: "center",
+    },
+    retryButton: {
+        marginTop: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 8,
+        backgroundColor: Colors.primary,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        fontSize: 14,
+        color: Colors.white,
+        fontWeight: "600",
+    },
+    noWorkerContainer: {
+        alignItems: "center",
+        padding: 20,
+    },
+    noWorkerText: {
+        fontSize: 14,
+        color: Colors.textSecondary,
+    },
 })

@@ -499,26 +499,29 @@ export default function Login() {
             const data = await response.json();
 
             if (response.ok) {
-                // --- 1. CRITICAL CHANGE: SAVE USER ID FOR PROFILE STORAGE ---
-                // This 'userId' is used by ProfilePage.tsx to identify the database record.
-                if (data.user && data.user.id) {
-                    await AsyncStorage.setItem("userId", data.user.id);
-                }
-                
-                // 2. Save dynamic name for the dashboard
-                await AsyncStorage.setItem("workerName", data.user.name);
-
-                // 3. Update Global Store
-                setAuthenticated(true);
-                setUser({
-                    id: data.user.id, // Ensure ID is passed to global state
+                // --- SAVE COMPLETE USER OBJECT FOR JOBS PAGE ---
+                // This includes workerProfileId which is needed to fetch assigned jobs
+                const userData = {
+                    id: data.user.id,
+                    workerProfileId: data.user.workerProfileId,
                     name: data.user.name,
                     email: data.user.email,
                     phone: data.user.phone || "",
                     role: data.user.role,
-                });
+                };
+                await AsyncStorage.setItem("user", JSON.stringify(userData));
+                
+                // Also save userId for backward compatibility
+                await AsyncStorage.setItem("userId", data.user.id);
+                
+                // Save dynamic name for the dashboard
+                await AsyncStorage.setItem("workerName", data.user.name);
 
-                // 4. Redirect: Go to the Welcome page.
+                // Update Global Store
+                setAuthenticated(true);
+                setUser(userData);
+
+                // Redirect: Go to the Welcome page.
                 router.replace("/welcome"); 
                 
             } else {
