@@ -1,13 +1,4 @@
-<<<<<<< HEAD
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-=======
-
-
-//import React, { useState, useEffect, useMemo } from "react";
-
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-
->>>>>>> 91f00aa2cd2d7ae9341f97b13435ee36646eccc9
 import {
     View,
     Text,
