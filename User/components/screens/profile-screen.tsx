@@ -369,6 +369,8 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
     const { user, isAuthenticated } = useAppStore()
     const router = useRouter()
     const insets = useSafeAreaInsets()
+    console.log("User object:", user)
+
 
     return (
         <View style={styles.container}>
@@ -384,7 +386,10 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
                 {/* Header - Now inside ScrollView */}
                 <View style={styles.scrollableHeader}>
                     <Text style={styles.headerTitle}>Account</Text>
-                    <TouchableOpacity style={styles.settingsBtn}>
+                    <TouchableOpacity
+                        style={styles.settingsBtn}
+                        onPress={() => router.push("/settings")} // router.push uses the filename
+                    >
                         <Ionicons name="settings-outline" size={24} color={Colors.text} />
                     </TouchableOpacity>
                 </View>
@@ -418,6 +423,7 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
                     <Text style={styles.profilePhone}>
                         {user?.phone || "+1 (555) 123-4567"}
                     </Text>
+                    
                 </View>
 
                 {/* Membership Card */}

@@ -161,4 +161,4 @@ const styles = StyleSheet.create({
   },
   countryCodeText: { fontSize: 16, fontWeight: "500" },
   flag: { fontSize: 20 },
-});
+}); 

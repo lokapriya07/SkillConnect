@@ -271,6 +271,32 @@ export const services: Service[] = [
     reviews: 987,
     category: "carpentry",
   },
+  // Add this inside the export const services array
+  // Add these to the 'services' array in services-data.ts
+{
+  id: "salon-men-1", 
+  name: "Men's Haircut & Styling",
+  description: "Professional haircut and hair styling by expert barbers at your home.",
+  price: 249,
+  originalPrice: 399,
+  duration: "30-45 mins",
+  image: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800", // New professional barber image
+  rating: 4.8,
+  reviews: 1240,
+  category: "salon",
+},
+{
+  id: "salon-men-2", 
+  name: "Beard Grooming & Trim",
+  description: "Shape and trim your beard for a sharp, clean look.",
+  price: 149,
+  originalPrice: 199,
+  duration: "20-30 mins",
+  image: "https://images.unsplash.com/photo-1621605815841-28794065d31f?w=800",
+  rating: 4.7,
+  reviews: 850,
+  category: "salon",
+},
 ]
 
 export const getServicesByCategory = (categoryId: string) => {
@@ -281,10 +307,31 @@ export const getServiceById = (id: string) => {
   return services.find((service) => service.id === id)
 }
 
-export const getFeaturedServices = () => {
-  return services.filter((service) => service.originalPrice).slice(0, 6)
+// export const getFeaturedServices = () => {
+//   return services.filter((service) => service.originalPrice).slice(0, 6)
+// }
+
+export const getFeaturedServices = (limit?: number) => {
+  const featuredServices = services.filter(
+    (service) => service.originalPrice
+  )
+
+  return typeof limit === "number"
+    ? featuredServices.slice(0, limit)
+    : featuredServices
 }
 
-export const getPopularServices = () => {
-  return [...services].sort((a, b) => b.reviews - a.reviews).slice(0, 6)
+// export const getPopularServices = () => {
+//   return [...services].sort((a, b) => b.reviews - a.reviews).slice(0, 6)
+// }
+
+
+export const getPopularServices = (limit?: number) => {
+  const sorted = [...services].sort(
+    (a, b) => b.reviews - a.reviews
+  )
+
+  return typeof limit === "number"
+    ? sorted.slice(0, limit)
+    : sorted
 }
