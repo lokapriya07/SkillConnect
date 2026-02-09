@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
+import { useAppStore } from '@/lib/store';
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -9,6 +10,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const HelpSupport = () => {
+    const darkMode = useAppStore((state) => state.darkMode);
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
     const faqs = [
@@ -39,6 +41,8 @@ const HelpSupport = () => {
         setExpandedIndex(expandedIndex === index ? null : index);
     };
 
+    const styles = getStyles(darkMode);
+
     return (
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
             {/* Header Section */}
@@ -52,14 +56,14 @@ const HelpSupport = () => {
                 <Text style={styles.sectionTitle}>Quick Support</Text>
                 <View style={styles.row}>
                     <TouchableOpacity style={styles.supportBox}>
-                        <View style={[styles.iconCircle, { backgroundColor: Colors.primaryLight }]}>
+                        <View style={[styles.iconCircle, { backgroundColor: darkMode ? '#1E3A5F' : Colors.primaryLight }]}>
                             <Ionicons name="chatbubbles" size={24} color={Colors.primary} />
                         </View>
                         <Text style={styles.supportText}>Live Chat</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.supportBox}>
-                        <View style={[styles.iconCircle, { backgroundColor: '#E8F5E9' }]}>
+                        <View style={[styles.iconCircle, { backgroundColor: darkMode ? '#1E3A5F' : '#E8F5E9' }]}>
                             <Ionicons name="call" size={24} color="#4CAF50" />
                         </View>
                         <Text style={styles.supportText}>Call Us</Text>
@@ -101,8 +105,8 @@ const HelpSupport = () => {
     );
 };
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: Colors.background },
+const getStyles = (darkMode: boolean) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: darkMode ? Colors.backgroundDark : Colors.background },
     headerGradient: {
         backgroundColor: Colors.primary,
         padding: 30,
@@ -113,7 +117,7 @@ const styles = StyleSheet.create({
     headerTitle: { fontSize: 26, fontWeight: 'bold', color: 'white', marginBottom: 20 },
     searchBar: {
         flexDirection: 'row',
-        backgroundColor: 'white',
+        backgroundColor: darkMode ? Colors.surfaceDark : 'white',
         borderRadius: 15,
         padding: 12,
         alignItems: 'center',
@@ -123,13 +127,13 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
     },
-    input: { marginLeft: 10, flex: 1, fontSize: 16, color: Colors.text },
+    input: { marginLeft: 10, flex: 1, fontSize: 16, color: darkMode ? Colors.textDark : Colors.text },
     content: { padding: 20 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginVertical: 15 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: darkMode ? Colors.textDark : Colors.text, marginVertical: 15 },
     row: { flexDirection: 'row', gap: 15 },
     supportBox: {
         flex: 1,
-        backgroundColor: 'white',
+        backgroundColor: darkMode ? Colors.surfaceDark : 'white',
         padding: 16,
         borderRadius: 20,
         alignItems: 'center',
@@ -147,10 +151,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 8
     },
-    supportText: { fontSize: 14, fontWeight: '600', color: Colors.text },
+    supportText: { fontSize: 14, fontWeight: '600', color: darkMode ? Colors.textDark : Colors.text },
     faqWrapper: {
         marginBottom: 10,
-        backgroundColor: 'white',
+        backgroundColor: darkMode ? Colors.surfaceDark : 'white',
         borderRadius: 15,
         overflow: 'hidden',
         elevation: 1,
@@ -163,16 +167,16 @@ const styles = StyleSheet.create({
     },
     faqItemActive: {
         borderBottomWidth: 1,
-        borderBottomColor: '#F5F5F5',
+        borderBottomColor: darkMode ? Colors.borderDark : '#F5F5F5',
     },
-    faqText: { fontSize: 15, fontWeight: '600', color: Colors.text, flex: 0.9 },
+    faqText: { fontSize: 15, fontWeight: '600', color: darkMode ? Colors.textDark : Colors.text, flex: 0.9 },
     answerContainer: {
         padding: 20,
-        backgroundColor: '#FAFAFA',
+        backgroundColor: darkMode ? '#2C2C2E' : '#FAFAFA',
     },
     answerText: {
         fontSize: 14,
-        color: Colors.textSecondary,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
         lineHeight: 20,
     },
     footerInfo: {
@@ -182,7 +186,7 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 14,
-        color: Colors.textSecondary,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
     },
     emailText: {
         fontSize: 16,

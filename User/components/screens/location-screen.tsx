@@ -19,6 +19,7 @@ export default function LocationScreen({ onLocationSelected, onManualEntry }: Lo
   const [isDetecting, setIsDetecting] = useState(false)
   const pulseAnim = useRef(new Animated.Value(1)).current
   const { savedAddresses, setCurrentLocation } = useAppStore()
+  const darkMode = useAppStore((state) => state.darkMode)
 
   useEffect(() => {
     let animation: Animated.CompositeAnimation
@@ -72,6 +73,8 @@ export default function LocationScreen({ onLocationSelected, onManualEntry }: Lo
     }
   }
 
+  const styles = getStyles(darkMode)
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -95,7 +98,7 @@ export default function LocationScreen({ onLocationSelected, onManualEntry }: Lo
             <Text style={styles.detectTitle}>{isDetecting ? "Detecting..." : "Use current location"}</Text>
             <Text style={styles.detectSubtitle}>Using GPS to find your location</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.gray[400]} />
+          <Ionicons name="chevron-forward" size={20} color={darkMode ? Colors.gray[500] : Colors.gray[400]} />
         </TouchableOpacity>
 
         <View style={styles.divider}>
@@ -111,7 +114,9 @@ export default function LocationScreen({ onLocationSelected, onManualEntry }: Lo
             <Text style={styles.savedTitle}>Saved Addresses</Text>
             {savedAddresses.map((addr) => (
               <TouchableOpacity key={addr.id} style={styles.savedAddress} onPress={() => onLocationSelected()}>
-                <Ionicons name={addr.type === "home" ? "home" : "location"} size={20} color={Colors.primary} />
+                <View style={styles.savedIcon}>
+                  <Ionicons name={addr.type === "home" ? "home" : "location"} size={20} color={Colors.primary} />
+                </View>
                 <View style={styles.savedAddressContent}>
                   <Text style={styles.savedAddressType}>{addr.type}</Text>
                   <Text style={styles.savedAddressText} numberOfLines={1}>{addr.fullAddress}</Text>
@@ -125,28 +130,45 @@ export default function LocationScreen({ onLocationSelected, onManualEntry }: Lo
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+const getStyles = (darkMode: boolean) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: darkMode ? Colors.backgroundDark : "#fff" },
   content: { flex: 1, paddingHorizontal: 24 },
   header: { paddingVertical: 24, alignItems: "center" },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#111" },
-  headerSubtitle: { fontSize: 16, color: "#666" },
-  detectContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#f9f9f9", borderRadius: 16, padding: 16, marginBottom: 24 },
+  headerTitle: { fontSize: 24, fontWeight: "bold", color: darkMode ? Colors.textDark : "#111" },
+  headerSubtitle: { fontSize: 16, color: darkMode ? Colors.textSecondaryDark : "#666" },
+  detectContainer: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    backgroundColor: darkMode ? Colors.surfaceDark : "#f9f9f9", 
+    borderRadius: 16, 
+    padding: 16, 
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
   detectActive: { borderColor: Colors.primary, borderWidth: 1 },
   detectIconWrapper: { width: 56, height: 56, alignItems: "center", justifyContent: "center" },
   pulseRing: { position: "absolute", width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary },
-  detectIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", elevation: 2 },
+  detectIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: darkMode ? Colors.surfaceDark : "#fff", alignItems: "center", justifyContent: "center", elevation: 2 },
   detectTextContainer: { flex: 1, marginLeft: 12 },
-  detectTitle: { fontSize: 16, fontWeight: "600" },
-  detectSubtitle: { fontSize: 14, color: "#999" },
+  detectTitle: { fontSize: 16, fontWeight: "600", color: darkMode ? Colors.textDark : "#111" },
+  detectSubtitle: { fontSize: 14, color: darkMode ? Colors.textSecondaryDark : "#999" },
   divider: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#eee" },
-  dividerText: { paddingHorizontal: 12, color: "#aaa" },
+  dividerLine: { flex: 1, height: 1, backgroundColor: darkMode ? Colors.borderDark : "#eee" },
+  dividerText: { paddingHorizontal: 12, color: darkMode ? Colors.gray[600] : "#aaa" },
   manualButton: { marginBottom: 24 },
   savedSection: { marginTop: 10 },
-  savedTitle: { fontSize: 16, fontWeight: "600", marginBottom: 12 },
-  savedAddress: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  savedTitle: { fontSize: 16, fontWeight: "600", marginBottom: 12, color: darkMode ? Colors.textDark : "#111" },
+  savedAddress: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: darkMode ? Colors.borderDark : "#eee" },
+  savedIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: darkMode ? '#1E3A5F' : '#E3F2FD',
+    alignItems: "center",
+    justifyContent: "center",
+  },
   savedAddressContent: { marginLeft: 12, flex: 1 },
-  savedAddressType: { fontWeight: "600", textTransform: "capitalize" },
-  savedAddressText: { color: "#666", fontSize: 13 },
+  savedAddressType: { fontWeight: "600", textTransform: "capitalize", color: darkMode ? Colors.textDark : "#111" },
+  savedAddressText: { color: darkMode ? Colors.textSecondaryDark : "#666", fontSize: 13 },
 })

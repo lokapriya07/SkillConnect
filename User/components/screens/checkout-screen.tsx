@@ -32,7 +32,7 @@ const paymentMethods = [
 
 export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProps) {
   // 1. Get data from Global Store
-  const { cart, getCartTotal, currentLocation, addBooking, clearCart, activeJobs, clearJobs } = useAppStore()
+  const { cart, getCartTotal, currentLocation, addBooking, clearCart, activeJobs, clearJobs, darkMode } = useAppStore()
   
   // Get the first/most recent active job for checkout
   const activeJob = activeJobs[0]
@@ -41,6 +41,15 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [selectedPayment, setSelectedPayment] = useState<string>("card")
   const [bidAmount, setBidAmount] = useState(activeJob?.budget || "")
+
+  // Theme colors
+  const backgroundColor = darkMode ? Colors.backgroundDark : Colors.background
+  const surfaceColor = darkMode ? Colors.surfaceDark : Colors.surface
+  const textColor = darkMode ? Colors.textDark : Colors.text
+  const textSecondaryColor = darkMode ? Colors.textSecondaryDark : Colors.textSecondary
+  const borderColor = darkMode ? Colors.borderDark : Colors.border
+  const surfaceVariantColor = darkMode ? Colors.gray[800] : Colors.gray[100]
+  const primaryLightColor = darkMode ? "#1E3A5F" : "#E3F2FD"
 
   // --- DYNAMIC PRICING LOGIC ---
   // Check if we are checking out a Bid from CreateRequestScreen or a standard Service
@@ -110,12 +119,336 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
     }
   }
 
+  // Dynamic styles
+  const getStyles = () => StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: backgroundColor,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 10 : 50,
+      paddingBottom: 16,
+      backgroundColor: surfaceColor,
+      borderBottomWidth: 1,
+      borderBottomColor: borderColor,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: surfaceVariantColor,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: textColor,
+    },
+    content: {
+      flex: 1,
+    },
+    section: {
+      backgroundColor: surfaceColor,
+      marginTop: 8,
+      padding: 16,
+    },
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: textColor,
+      marginBottom: 12,
+    },
+    changeText: {
+      fontSize: 14,
+      color: Colors.primary,
+      fontWeight: "500",
+    },
+    addressCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 12,
+      backgroundColor: primaryLightColor,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: Colors.primary,
+    },
+    addressIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: surfaceColor,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+    },
+    addressDetails: {
+      flex: 1,
+    },
+    addressType: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: textColor,
+      marginBottom: 2,
+    },
+    addressText: {
+      fontSize: 13,
+      color: textSecondaryColor,
+      lineHeight: 18,
+    },
+    dateScroll: {
+      marginHorizontal: -16,
+      paddingHorizontal: 16,
+    },
+    dateCard: {
+      width: 70,
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: surfaceVariantColor,
+      alignItems: "center",
+      marginRight: 10,
+      borderWidth: 1,
+      borderColor: borderColor,
+    },
+    dateCardSelected: {
+      backgroundColor: Colors.primary,
+      borderColor: Colors.primary,
+    },
+    dateDay: {
+      fontSize: 12,
+      color: textSecondaryColor,
+      marginBottom: 4,
+    },
+    dateNumber: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: textColor,
+      marginBottom: 2,
+    },
+    dateMonth: {
+      fontSize: 12,
+      color: textSecondaryColor,
+    },
+    dateTextSelected: {
+      color: Colors.white,
+    },
+    timeGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginHorizontal: -5,
+    },
+    timeSlot: {
+      width: "23%",
+      margin: "1%",
+      paddingVertical: 12,
+      borderRadius: 8,
+      backgroundColor: surfaceVariantColor,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: borderColor,
+    },
+    timeSlotSelected: {
+      backgroundColor: Colors.primary,
+      borderColor: Colors.primary,
+    },
+    timeText: {
+      fontSize: 12,
+      color: textColor,
+      fontWeight: "500",
+    },
+    timeTextSelected: {
+      color: Colors.white,
+    },
+    paymentCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 14,
+      backgroundColor: surfaceVariantColor,
+      borderRadius: 12,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: borderColor,
+    },
+    paymentCardSelected: {
+      borderColor: Colors.primary,
+      backgroundColor: primaryLightColor,
+    },
+    paymentLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    paymentIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: surfaceColor,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+    },
+    paymentIconSelected: {
+      backgroundColor: Colors.primary,
+    },
+    paymentName: {
+      fontSize: 14,
+      fontWeight: "500",
+      color: textColor,
+    },
+    radioOuter: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: darkMode ? Colors.gray[600] : "#CCC",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    radioOuterSelected: {
+      borderColor: Colors.primary,
+    },
+    radioInner: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: Colors.primary,
+    },
+    summaryCard: {
+      backgroundColor: surfaceVariantColor,
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: borderColor,
+    },
+    summaryItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    summaryItemName: {
+      fontSize: 14,
+      color: textSecondaryColor,
+    },
+    summaryItemPrice: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: textColor,
+    },
+    summaryRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    },
+    summaryLabel: {
+      fontSize: 14,
+      color: textSecondaryColor,
+    },
+    summaryValue: {
+      fontSize: 14,
+      color: textColor,
+      fontWeight: "500",
+    },
+    totalLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: textColor,
+    },
+    totalValue: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: Colors.primary,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: borderColor,
+      marginVertical: 12,
+    },
+    bidAmountContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    currencySymbol: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: textColor,
+    },
+    bidAmountInput: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: "600",
+      color: textColor,
+      padding: 4,
+    },
+    bidAdjustmentNote: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 8,
+      padding: 8,
+      backgroundColor: darkMode ? "#3D2A1A" : "#FFF3E0",
+      borderRadius: 8,
+    },
+    bidAdjustmentText: {
+      fontSize: 12,
+      color: "#FF9800",
+      marginLeft: 4,
+    },
+    bottomBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      backgroundColor: surfaceColor,
+      borderTopWidth: 1,
+      borderTopColor: borderColor,
+      paddingBottom: Platform.OS === "ios" ? 24 : 16,
+    },
+    totalContainer: {
+      marginRight: 16,
+    },
+    bottomTotalLabel: {
+      fontSize: 12,
+      color: textSecondaryColor,
+    },
+    bottomTotalValue: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: textColor,
+    },
+    confirmButton: {
+      flex: 1,
+      backgroundColor: Colors.primary,
+      paddingVertical: 14,
+      borderRadius: 12,
+      alignItems: "center",
+    },
+    confirmButtonDisabled: {
+      backgroundColor: Colors.gray[400],
+    },
+    confirmButtonText: {
+      color: Colors.white,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+  })
+
+  const styles = getStyles()
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={textColor} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Checkout</Text>
         <View style={{ width: 40 }} />
@@ -229,7 +562,7 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
                       onChangeText={setBidAmount}
                       keyboardType="numeric"
                       placeholder="0"
-                      placeholderTextColor="#999"
+                      placeholderTextColor={textSecondaryColor}
                     />
                   </View>
                 </View>
@@ -291,325 +624,3 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
     </View>
   )
 }
-
-// STYLES DEFINITION (Fixed and complete)
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8F9FA",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 10 : 50,
-    paddingBottom: 16,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEE",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F1F3F5",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    backgroundColor: "white",
-    marginTop: 8,
-    padding: 16,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 12,
-  },
-  changeText: {
-    fontSize: 14,
-    color: "#007BFF",
-    fontWeight: "500",
-  },
-  addressCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    backgroundColor: "#E3F2FD",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#007BFF",
-  },
-  addressIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "white",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  addressDetails: {
-    flex: 1,
-  },
-  addressType: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
-  },
-  addressText: {
-    fontSize: 13,
-    color: "#666",
-    lineHeight: 18,
-  },
-  dateScroll: {
-    marginHorizontal: -16,
-    paddingHorizontal: 16,
-  },
-  dateCard: {
-    width: 70,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "#F1F3F5",
-    alignItems: "center",
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  dateCardSelected: {
-    backgroundColor: "#007BFF",
-    borderColor: "#007BFF",
-  },
-  dateDay: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 4,
-  },
-  dateNumber: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 2,
-  },
-  dateMonth: {
-    fontSize: 12,
-    color: "#666",
-  },
-  dateTextSelected: {
-    color: "white",
-  },
-  timeGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginHorizontal: -5,
-  },
-  timeSlot: {
-    width: "23%",
-    margin: "1%",
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: "#F1F3F5",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  timeSlotSelected: {
-    backgroundColor: "#007BFF",
-    borderColor: "#007BFF",
-  },
-  timeText: {
-    fontSize: 12,
-    color: "#333",
-    fontWeight: "500",
-  },
-  timeTextSelected: {
-    color: "white",
-  },
-  paymentCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 14,
-    backgroundColor: "#F1F3F5",
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  paymentCardSelected: {
-    borderColor: "#007BFF",
-    backgroundColor: "#E3F2FD",
-  },
-  paymentLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  paymentIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "white",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  paymentIconSelected: {
-    backgroundColor: "#007BFF",
-  },
-  paymentName: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#333",
-  },
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: "#CCC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioOuterSelected: {
-    borderColor: "#007BFF",
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#007BFF",
-  },
-  summaryCard: {
-    backgroundColor: "#F1F3F5",
-    borderRadius: 12,
-    padding: 16,
-  },
-  summaryItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  summaryItemName: {
-    fontSize: 14,
-    color: "#333",
-    flex: 1,
-  },
-  summaryItemPrice: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#333",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#DDD",
-    marginVertical: 12,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: "#666",
-  },
-  summaryValue: {
-    fontSize: 14,
-    color: "#333",
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-  },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#007BFF",
-  },
-  bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    paddingBottom: Platform.OS === "ios" ? 30 : 16,
-    backgroundColor: "white",
-    borderTopWidth: 1,
-    borderTopColor: "#EEE",
-  },
-  totalContainer: {},
-  bottomTotalLabel: {
-    fontSize: 12,
-    color: "#666",
-  },
-  bottomTotalValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#333",
-  },
-  confirmButton: {
-    backgroundColor: "#007BFF",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  confirmButtonDisabled: {
-    backgroundColor: "#CCC",
-  },
-  confirmButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "white",
-  },
-  bidAmountContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F1F3F5",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    minWidth: 100,
-  },
-  currencySymbol: {
-    fontSize: 14,
-    color: "#666",
-  },
-  bidAmountInput: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    paddingVertical: 8,
-  },
-  bidAdjustmentNote: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  bidAdjustmentText: {
-    fontSize: 12,
-    color: "#FF9800",
-    marginLeft: 4,
-  },
-})

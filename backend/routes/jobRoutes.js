@@ -96,6 +96,11 @@ router.post(
         try {
             const { description, budget, userId, latitude, longitude, address, city, state, fullAddress } = req.body;
 
+            // Validate userId is required
+            if (!userId || userId === 'undefined' || userId === 'null') {
+                return res.status(400).json({ error: "User ID is required. Please log in again." });
+            }
+
             if (!latitude || !longitude) {
                 return res.status(400).json({ error: "Location is required" });
             }
@@ -108,6 +113,9 @@ router.post(
             // ✅ Call the new function name with ALL 3 inputs
             const rawSkills = await extractSkillsFromMultimodal(description, audioPath, imagePath);
             const skillsRequired = rawSkills.map(s => s.toLowerCase().trim());
+            
+            console.log(`✅ Job uploaded by user ${userId}`);
+            
             const job = await JobRequest.create({
                 description: description || "Voice/Image Request",
                 budget,
@@ -195,6 +203,14 @@ router.get('/worker-feed/:workerId', async (req, res) => {
 router.get('/user/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
+
+        // Validate userId
+        if (!userId || userId === 'undefined' || userId === 'null') {
+            return res.status(400).json({ 
+                success: false, 
+                error: "Invalid user ID" 
+            });
+        }
 
         // Find jobs where the userId matches
         // We filter for statuses that are not 'completed' or 'cancelled'

@@ -18,6 +18,7 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
     const currentLocation = useAppStore((state) => state.currentLocation)
     const user = useAppStore((state) => state.user)
     const assignWorker = useAppStore((state) => state.assignWorker)
+    const darkMode = useAppStore((state) => state.darkMode)
     
     const [assignedWorker, setAssignedWorker] = useState<AssignedWorker | null>(null)
     const [loadingWorker, setLoadingWorker] = useState(true)
@@ -51,12 +52,11 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
     }, [])
 
     // Fetch assigned worker when component mounts
-    // Replace your existing useEffect with this:
     useEffect(() => {
         if (currentBooking?.id) {
             fetchAssignedWorker();
         }
-    }, [currentBooking?.id]); // Only re-run if the ID changes, not the whole object
+    }, [currentBooking?.id]);
 
     const fetchAssignedWorker = async () => {
         if (!currentBooking) {
@@ -160,6 +160,8 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
     const handleCallPress = () => {
         Alert.alert("Call Feature", "Calling your assigned worker...")
     }
+
+    const styles = getStyles(darkMode)
 
     return (
         <View style={styles.container}>
@@ -341,10 +343,11 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
     )
 }
 
-const styles = StyleSheet.create({
+const getStyles = (darkMode: boolean) => {
+    return StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
+        backgroundColor: darkMode ? Colors.backgroundDark : Colors.background,
     },
     content: {
         padding: 20,
@@ -372,16 +375,16 @@ const styles = StyleSheet.create({
     successTitle: {
         fontSize: 24,
         fontWeight: "700",
-        color: Colors.text,
+        color: darkMode ? Colors.textDark : Colors.text,
         marginBottom: 8,
     },
     successSubtitle: {
         fontSize: 14,
-        color: Colors.textSecondary,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
         textAlign: "center",
     },
     detailsCard: {
-        backgroundColor: Colors.white,
+        backgroundColor: darkMode ? Colors.surfaceDark : Colors.white,
         borderRadius: 16,
         padding: 20,
         marginBottom: 16,
@@ -397,7 +400,7 @@ const styles = StyleSheet.create({
     },
     bookingIdLabel: {
         fontSize: 12,
-        color: Colors.textSecondary,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
         marginBottom: 4,
     },
     bookingId: {
@@ -407,7 +410,7 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: Colors.border,
+        backgroundColor: darkMode ? Colors.borderDark : Colors.border,
         marginVertical: 16,
     },
     detailRow: {
@@ -418,7 +421,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: "#E3F2FD", // Primary Light
+        backgroundColor: darkMode ? "#1E3A5F" : "#E3F2FD", // Primary Light/Dark
         alignItems: "center",
         justifyContent: "center",
         marginRight: 12,
@@ -428,17 +431,17 @@ const styles = StyleSheet.create({
     },
     detailLabel: {
         fontSize: 12,
-        color: Colors.textSecondary,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
         marginBottom: 2,
     },
     detailValue: {
         fontSize: 14,
         fontWeight: "600",
-        color: Colors.text,
+        color: darkMode ? Colors.textDark : Colors.text,
     },
     detailSubvalue: {
         fontSize: 13,
-        color: Colors.textSecondary,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
         marginTop: 2,
     },
     totalRow: {
@@ -449,7 +452,7 @@ const styles = StyleSheet.create({
     totalLabel: {
         fontSize: 16,
         fontWeight: "600",
-        color: Colors.text,
+        color: darkMode ? Colors.textDark : Colors.text,
     },
     totalValue: {
         fontSize: 24,
@@ -457,7 +460,7 @@ const styles = StyleSheet.create({
         color: Colors.primary,
     },
     professionalCard: {
-        backgroundColor: Colors.white,
+        backgroundColor: darkMode ? Colors.surfaceDark : Colors.white,
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
@@ -470,7 +473,7 @@ const styles = StyleSheet.create({
     professionalTitle: {
         fontSize: 14,
         fontWeight: "600",
-        color: Colors.text,
+        color: darkMode ? Colors.textDark : Colors.text,
         marginBottom: 12,
     },
     professionalInfo: {
@@ -489,7 +492,7 @@ const styles = StyleSheet.create({
     professionalName: {
         fontSize: 16,
         fontWeight: "600",
-        color: Colors.text,
+        color: darkMode ? Colors.textDark : Colors.text,
         marginBottom: 4,
     },
     ratingContainer: {
@@ -499,40 +502,93 @@ const styles = StyleSheet.create({
     },
     ratingText: {
         fontSize: 12,
-        color: Colors.textSecondary,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
         marginLeft: 4,
     },
     professionalExp: {
         fontSize: 12,
-        color: Colors.textSecondary,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
     },
     matchBadge: {
-        backgroundColor: "#E8F5E9",
+        backgroundColor: darkMode ? "#1E3A5F" : "#E3F2FD",
         paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 12,
+        paddingVertical: 4,
+        borderRadius: 8,
         marginTop: 4,
-        alignSelf: 'flex-start',
+        alignSelf: "flex-start",
     },
     matchText: {
-        fontSize: 10,
-        color: "#4CAF50",
+        fontSize: 11,
         fontWeight: "600",
+        color: Colors.primary,
+    },
+    buttonGroup: {
+        flexDirection: "row",
+        marginLeft: 12,
     },
     callButton: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: "#4CAF50", // Success
+        backgroundColor: "#10B981", // Success Green
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 8,
+    },
+    chatButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: Colors.primary,
         alignItems: "center",
         justifyContent: "center",
     },
+    loadingContainer: {
+        alignItems: "center",
+        padding: 20,
+    },
+    loadingText: {
+        fontSize: 14,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
+        marginTop: 8,
+    },
+    errorContainer: {
+        alignItems: "center",
+        padding: 16,
+        backgroundColor: darkMode ? "#2C1A1A" : "#FFFBEB",
+        borderRadius: 12,
+    },
+    errorText: {
+        fontSize: 14,
+        color: darkMode ? Colors.textDark : Colors.text,
+        textAlign: "center",
+        marginTop: 8,
+        marginBottom: 12,
+    },
+    retryButton: {
+        backgroundColor: Colors.primary,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: Colors.white,
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    noWorkerContainer: {
+        alignItems: "center",
+        padding: 20,
+    },
+    noWorkerText: {
+        fontSize: 14,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
+    },
     tipsCard: {
-        backgroundColor: "#E3F2FD", // Primary Light
+        backgroundColor: darkMode ? Colors.surfaceDark : Colors.white,
         borderRadius: 16,
         padding: 16,
-        borderWidth: 1,
-        borderColor: Colors.primary,
+        marginBottom: 16,
     },
     tipsHeader: {
         flexDirection: "row",
@@ -542,103 +598,46 @@ const styles = StyleSheet.create({
     tipsTitle: {
         fontSize: 14,
         fontWeight: "600",
-        color: Colors.primary,
+        color: darkMode ? Colors.textDark : Colors.text,
         marginLeft: 8,
     },
     tipsText: {
         fontSize: 13,
-        color: Colors.text,
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary,
         marginBottom: 6,
         lineHeight: 18,
     },
     bottomButtons: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
         flexDirection: "row",
         padding: 16,
-        paddingBottom: 30,
-        backgroundColor: Colors.white,
-        borderTopWidth: 1,
-        borderTopColor: Colors.border,
         gap: 12,
     },
     secondaryButton: {
         flex: 1,
-        paddingVertical: 14,
+        height: 50,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: Colors.primary,
+        borderColor: darkMode ? Colors.borderDark : Colors.border,
         alignItems: "center",
+        justifyContent: "center",
     },
     secondaryButtonText: {
         fontSize: 16,
         fontWeight: "600",
-        color: Colors.primary,
+        color: darkMode ? Colors.textDark : Colors.text,
     },
     primaryButton: {
         flex: 1,
-        paddingVertical: 14,
+        height: 50,
         borderRadius: 12,
         backgroundColor: Colors.primary,
         alignItems: "center",
+        justifyContent: "center",
     },
     primaryButtonText: {
         fontSize: 16,
         fontWeight: "600",
         color: Colors.white,
     },
-    actionButtons: {
-        flexDirection: "row",
-        gap: 12,
-    },
-    chatButton: {
-        backgroundColor: "#3498db",
-        padding: 10,
-        borderRadius: 50,
-    },
-    buttonGroup: {
-        flexDirection: "row",
-        gap: 12,
-    },
-    loadingContainer: {
-        alignItems: "center",
-        padding: 20,
-    },
-    loadingText: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginTop: 8,
-    },
-    errorContainer: {
-        alignItems: "center",
-        padding: 20,
-    },
-    errorText: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginTop: 8,
-        textAlign: "center",
-    },
-    retryButton: {
-        marginTop: 12,
-        paddingHorizontal: 20,
-        paddingVertical: 8,
-        backgroundColor: Colors.primary,
-        borderRadius: 8,
-    },
-    retryButtonText: {
-        fontSize: 14,
-        color: Colors.white,
-        fontWeight: "600",
-    },
-    noWorkerContainer: {
-        alignItems: "center",
-        padding: 20,
-    },
-    noWorkerText: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-    },
 })
+}

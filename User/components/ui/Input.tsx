@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { View, TextInput, Text, StyleSheet, type ViewStyle, type TextInputProps } from "react-native"
 import  {Colors}  from "@/constants/Colors"
+import { useAppStore } from "@/lib/store"
 
 interface InputProps extends TextInputProps {
   label?: string
@@ -12,45 +13,46 @@ interface InputProps extends TextInputProps {
 
 export function Input({ label, error, containerStyle, style, ...props }: InputProps) {
   const [isFocused, setIsFocused] = useState(false)
+  const darkMode = useAppStore((state) => state.darkMode)
 
   return (
-    <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+    <View style={[getStyles(darkMode).container, containerStyle]}>
+      {label && <Text style={getStyles(darkMode).label}>{label}</Text>}
       <TextInput
-        style={[styles.input, isFocused && styles.inputFocused, error && styles.inputError, style]}
-        placeholderTextColor={Colors.gray[400]}
+        style={[getStyles(darkMode).input, isFocused && getStyles(darkMode).inputFocused, error && getStyles(darkMode).inputError, style]}
+        placeholderTextColor={darkMode ? Colors.gray[500] : Colors.gray[400]}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         {...props}
       />
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && <Text style={getStyles(darkMode).error}>{error}</Text>}
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+const getStyles = (darkMode: boolean) => StyleSheet.create({
   container: {
     marginBottom: 16,
   },
   label: {
     fontSize: 14,
     fontWeight: "500",
-    color: Colors.gray[700],
+    color: darkMode ? Colors.textSecondaryDark : Colors.gray[700],
     marginBottom: 6,
   },
   input: {
-    backgroundColor: Colors.gray[50],
+    backgroundColor: darkMode ? Colors.surfaceDark : Colors.gray[50],
     borderWidth: 1,
-    borderColor: Colors.gray[200],
+    borderColor: darkMode ? Colors.borderDark : Colors.gray[200],
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: Colors.gray[900],
+    color: darkMode ? Colors.textDark : Colors.gray[900],
   },
   inputFocused: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.white,
+    backgroundColor: darkMode ? '#2C2C2E' : Colors.white,
   },
   inputError: {
     borderColor: Colors.error,
