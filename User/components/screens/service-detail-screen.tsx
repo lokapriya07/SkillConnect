@@ -18,14 +18,23 @@ export default function ServiceDetailScreen({ serviceId, onBack, onGoToCart }: S
     const [activeImageIndex, setActiveImageIndex] = useState(0)
 
     // Get store actions
-    const { addToCart, cart } = useAppStore()
+    const { addToCart, cart, darkMode } = useAppStore()
 
     const service = services.find((s) => s.id === serviceId)
 
+    // Theme colors
+    const backgroundColor = darkMode ? Colors.backgroundDark : Colors.background
+    const surfaceColor = darkMode ? Colors.surfaceDark : Colors.surface
+    const surfaceVariantColor = darkMode ? Colors.gray[800] : Colors.gray[100]
+    const textColor = darkMode ? Colors.textDark : Colors.text
+    const textSecondaryColor = darkMode ? Colors.textSecondaryDark : Colors.textSecondary
+    const borderColor = darkMode ? Colors.borderDark : Colors.border
+    const ratingBadgeBg = darkMode ? "#3D2A1A" : "#FFF9E6"
+
     if (!service) {
         return (
-            <View style={[styles.container, styles.center]}>
-                <Text>Service not found</Text>
+            <View style={{ flex: 1, backgroundColor, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: textColor }}>Service not found</Text>
                 <TouchableOpacity onPress={onBack} style={{ marginTop: 20 }}>
                     <Text style={{ color: Colors.primary }}>Go Back</Text>
                 </TouchableOpacity>
@@ -52,27 +61,307 @@ export default function ServiceDetailScreen({ serviceId, onBack, onGoToCart }: S
     ]
 
     const handleAddToCart = () => {
-        // FIX: Pass 'service' as 1st arg, 'quantity' as 2nd arg
-        // This matches the addToCart: (service: Service, quantity?: number) signature in store.ts
         addToCart(service, quantity)
-
-        // Optional: Navigate to cart automatically or show a toast
-        // onGoToCart();
     }
 
-    // Calculate total items in cart
     const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+
+    // Dynamic styles
+    const getStyles = () => StyleSheet.create({
+        container: {
+            flex: 1,
+            backgroundColor: backgroundColor,
+        },
+        center: {
+            justifyContent: 'center',
+            alignItems: 'center'
+        },
+        header: {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 16,
+            paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 50,
+            paddingBottom: 16,
+            backgroundColor: surfaceColor,
+            borderBottomWidth: 1,
+            borderBottomColor: borderColor,
+        },
+        backButton: {
+            padding: 8,
+        },
+        headerTitle: {
+            fontSize: 18,
+            fontWeight: "600",
+            color: textColor,
+        },
+        cartButton: {
+            padding: 8,
+            position: "relative",
+        },
+        cartBadge: {
+            position: "absolute",
+            top: 0,
+            right: 0,
+            backgroundColor: Colors.primary,
+            borderRadius: 10,
+            width: 18,
+            height: 18,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        cartBadgeText: {
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: "bold",
+        },
+        imageContainer: {
+            position: "relative",
+        },
+        serviceImage: {
+            width: width,
+            height: 280,
+            resizeMode: "cover",
+        },
+        imageDots: {
+            flexDirection: "row",
+            justifyContent: "center",
+            position: "absolute",
+            bottom: 16,
+            width: "100%",
+        },
+        dot: {
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: "rgba(255,255,255,0.5)",
+            marginHorizontal: 4,
+        },
+        activeDot: {
+            backgroundColor: Colors.white,
+            width: 24,
+        },
+        infoContainer: {
+            padding: 20,
+        },
+        titleRow: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+        },
+        serviceName: {
+            fontSize: 22,
+            fontWeight: "bold",
+            color: textColor,
+            flex: 1,
+        },
+        ratingBadge: {
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: ratingBadgeBg,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 16,
+        },
+        ratingText: {
+            fontSize: 14,
+            fontWeight: "600",
+            color: textColor,
+            marginLeft: 4,
+        },
+        categoryText: {
+            fontSize: 14,
+            color: textSecondaryColor,
+            marginTop: 4,
+        },
+        priceRow: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 12,
+        },
+        price: {
+            fontSize: 24,
+            fontWeight: "bold",
+            color: Colors.primary,
+        },
+        originalPrice: {
+            fontSize: 16,
+            color: textSecondaryColor,
+            textDecorationLine: "line-through",
+            marginLeft: 12,
+        },
+        discountBadge: {
+            backgroundColor: darkMode ? "#1B5E20" : "#E8F5E9",
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 4,
+            marginLeft: 12,
+        },
+        discountText: {
+            fontSize: 12,
+            fontWeight: "600",
+            color: "#4CAF50",
+        },
+        duration: {
+            fontSize: 14,
+            color: textSecondaryColor,
+            marginTop: 8,
+        },
+        section: {
+            marginTop: 24,
+        },
+        sectionTitle: {
+            fontSize: 18,
+            fontWeight: "600",
+            color: textColor,
+            marginBottom: 12,
+        },
+        description: {
+            fontSize: 14,
+            color: textSecondaryColor,
+            lineHeight: 22,
+        },
+        includeItem: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 10,
+        },
+        includeText: {
+            fontSize: 14,
+            color: textColor,
+            marginLeft: 10,
+        },
+        trustContainer: {
+            flexDirection: "row",
+            justifyContent: "space-around",
+            backgroundColor: darkMode ? "#1E3A5F" : "#E3F2FD",
+            borderRadius: 12,
+            padding: 16,
+            marginTop: 24,
+        },
+        trustBadge: {
+            alignItems: "center",
+        },
+        trustText: {
+            fontSize: 12,
+            color: Colors.primary,
+            marginTop: 4,
+            fontWeight: "500",
+        },
+        reviewHeader: {
+            flexDirection: "row",
+            alignItems: "center",
+        },
+        reviewCount: {
+            fontSize: 14,
+            color: textSecondaryColor,
+            marginLeft: 8,
+        },
+        reviewCard: {
+            backgroundColor: surfaceColor,
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 12,
+            borderWidth: 1,
+            borderColor: borderColor,
+        },
+        reviewTop: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+        },
+        reviewerInfo: {
+            flexDirection: "row",
+            alignItems: "center",
+        },
+        avatar: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: Colors.primary,
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 12,
+        },
+        avatarText: {
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: "bold",
+        },
+        reviewerName: {
+            fontSize: 14,
+            fontWeight: "600",
+            color: textColor,
+        },
+        reviewDate: {
+            fontSize: 12,
+            color: textSecondaryColor,
+        },
+        reviewRating: {
+            flexDirection: "row",
+        },
+        reviewComment: {
+            fontSize: 14,
+            color: textSecondaryColor,
+            lineHeight: 20,
+        },
+        bottomBar: {
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 16,
+            backgroundColor: surfaceColor,
+            borderTopWidth: 1,
+            borderTopColor: borderColor,
+            paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+            position: 'absolute',
+            bottom: 0,
+            width: '100%',
+        },
+        quantityContainer: {
+            flexDirection: "row",
+            alignItems: "center",
+            borderWidth: 1,
+            borderColor: borderColor,
+            borderRadius: 8,
+            marginRight: 16,
+            backgroundColor: surfaceVariantColor,
+        },
+        quantityButton: {
+            padding: 10,
+        },
+        quantityText: {
+            fontSize: 16,
+            fontWeight: "600",
+            paddingHorizontal: 12,
+            color: textColor,
+        },
+        addToCartButton: {
+            flex: 1,
+            backgroundColor: Colors.primary,
+            paddingVertical: 14,
+            borderRadius: 12,
+            alignItems: "center",
+        },
+        addToCartText: {
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: "600",
+        },
+    })
+
+    const styles = getStyles()
 
     return (
         <View style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={Colors.text} />
+                    <Ionicons name="arrow-back" size={24} color={textColor} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Service Details</Text>
                 <TouchableOpacity onPress={onGoToCart} style={styles.cartButton}>
-                    <Ionicons name="cart-outline" size={24} color={Colors.text} />
+                    <Ionicons name="cart-outline" size={24} color={textColor} />
                     {cartItemCount > 0 && (
                         <View style={styles.cartBadge}>
                             <Text style={styles.cartBadgeText}>{cartItemCount}</Text>
@@ -125,7 +414,7 @@ export default function ServiceDetailScreen({ serviceId, onBack, onGoToCart }: S
                     </View>
 
                     <Text style={styles.duration}>
-                        <Ionicons name="time-outline" size={14} color={Colors.textSecondary} /> Duration: {service.duration}
+                        <Ionicons name="time-outline" size={14} color={textSecondaryColor} /> Duration: {service.duration}
                     </Text>
 
                     {/* Description */}
@@ -216,285 +505,3 @@ export default function ServiceDetailScreen({ serviceId, onBack, onGoToCart }: S
         </View>
     )
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
-    center: {
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 50,
-        paddingBottom: 16,
-        backgroundColor: Colors.white,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-    },
-    backButton: {
-        padding: 8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: "600",
-        color: Colors.text,
-    },
-    cartButton: {
-        padding: 8,
-        position: "relative",
-    },
-    cartBadge: {
-        position: "absolute",
-        top: 0,
-        right: 0,
-        backgroundColor: Colors.primary,
-        borderRadius: 10,
-        width: 18,
-        height: 18,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    cartBadgeText: {
-        color: Colors.white,
-        fontSize: 10,
-        fontWeight: "bold",
-    },
-    imageContainer: {
-        position: "relative",
-    },
-    serviceImage: {
-        width: width,
-        height: 280,
-        resizeMode: "cover",
-    },
-    imageDots: {
-        flexDirection: "row",
-        justifyContent: "center",
-        position: "absolute",
-        bottom: 16,
-        width: "100%",
-    },
-    dot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: "rgba(255,255,255,0.5)",
-        marginHorizontal: 4,
-    },
-    activeDot: {
-        backgroundColor: Colors.white,
-        width: 24,
-    },
-    infoContainer: {
-        padding: 20,
-    },
-    titleRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-    },
-    serviceName: {
-        fontSize: 22,
-        fontWeight: "bold",
-        color: Colors.text,
-        flex: 1,
-    },
-    ratingBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#FFF9E6",
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 16,
-    },
-    ratingText: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: Colors.text,
-        marginLeft: 4,
-    },
-    categoryText: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginTop: 4,
-    },
-    priceRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 12,
-    },
-    price: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: Colors.primary,
-    },
-    originalPrice: {
-        fontSize: 16,
-        color: Colors.textSecondary,
-        textDecorationLine: "line-through",
-        marginLeft: 12,
-    },
-    discountBadge: {
-        backgroundColor: "#E8F5E9",
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
-        marginLeft: 12,
-    },
-    discountText: {
-        fontSize: 12,
-        fontWeight: "600",
-        color: "#4CAF50",
-    },
-    duration: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginTop: 8,
-    },
-    section: {
-        marginTop: 24,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: "600",
-        color: Colors.text,
-        marginBottom: 12,
-    },
-    description: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-        lineHeight: 22,
-    },
-    includeItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 10,
-    },
-    includeText: {
-        fontSize: 14,
-        color: Colors.text,
-        marginLeft: 10,
-    },
-    trustContainer: {
-        flexDirection: "row",
-        justifyContent: "space-around",
-        backgroundColor: "#E3F2FD", // Assuming Colors.primaryLight is this blue
-        borderRadius: 12,
-        padding: 16,
-        marginTop: 24,
-    },
-    trustBadge: {
-        alignItems: "center",
-    },
-    trustText: {
-        fontSize: 12,
-        color: Colors.primary,
-        marginTop: 4,
-        fontWeight: "500",
-    },
-    reviewHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    reviewCount: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginLeft: 8,
-    },
-    reviewCard: {
-        backgroundColor: Colors.white,
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: Colors.border,
-    },
-    reviewTop: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 8,
-    },
-    reviewerInfo: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: Colors.primary,
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 12,
-    },
-    avatarText: {
-        color: Colors.white,
-        fontSize: 16,
-        fontWeight: "bold",
-    },
-    reviewerName: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: Colors.text,
-    },
-    reviewDate: {
-        fontSize: 12,
-        color: Colors.textSecondary,
-    },
-    reviewRating: {
-        flexDirection: "row",
-    },
-    reviewComment: {
-        fontSize: 14,
-        color: Colors.textSecondary,
-        lineHeight: 20,
-    },
-    bottomBar: {
-        flexDirection: "row",
-        alignItems: "center",
-        padding: 16,
-        backgroundColor: Colors.white,
-        borderTopWidth: 1,
-        borderTopColor: Colors.border,
-        paddingBottom: Platform.OS === 'ios' ? 30 : 16,
-        position: 'absolute',
-        bottom: 0,
-        width: '100%',
-    },
-    quantityContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        marginRight: 16,
-    },
-    quantityButton: {
-        padding: 10,
-    },
-    quantityText: {
-        fontSize: 16,
-        fontWeight: "600",
-        paddingHorizontal: 12,
-        color: Colors.text,
-    },
-    addToCartButton: {
-        flex: 1,
-        backgroundColor: Colors.primary,
-        paddingVertical: 14,
-        borderRadius: 12,
-        alignItems: "center",
-    },
-    addToCartText: {
-        color: Colors.white,
-        fontSize: 16,
-        fontWeight: "600",
-    },
-})

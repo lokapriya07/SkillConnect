@@ -1,51 +1,8 @@
-// import { Platform } from 'react-native';
+import { Platform } from 'react-native';
 
-// const tintColorLight = '#0a7ea4';
-// const tintColorDark = '#fff';
+const tintColorLight = '#007BFF';
+const tintColorDark = '#fff';
 
-// export const Colors = {
-//   light: {
-//     text: '#11181C',
-//     background: '#fff',
-//     tint: tintColorLight,
-//     icon: '#687076',
-//     tabIconDefault: '#687076',
-//     tabIconSelected: tintColorLight,
-//   },
-//   dark: {
-//     text: '#ECEDEE',
-//     background: '#151718',
-//     tint: tintColorDark,
-//     icon: '#9BA1A6',
-//     tabIconDefault: '#9BA1A6',
-//     tabIconSelected: tintColorDark,
-//   },
-// };
-
-// export const Fonts = Platform.select({
-//   ios: {
-//     /** iOS `UIFontDescriptorSystemDesignDefault` */
-//     sans: 'system-ui',
-//     /** iOS `UIFontDescriptorSystemDesignSerif` */
-//     serif: 'ui-serif',
-//     /** iOS `UIFontDescriptorSystemDesignRounded` */
-//     rounded: 'ui-rounded',
-//     /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-//     mono: 'ui-monospace',
-//   },
-//   default: {
-//     sans: 'normal',
-//     serif: 'serif',
-//     rounded: 'normal',
-//     mono: 'monospace',
-//   },
-//   web: {
-//     sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-//     serif: "Georgia, 'Times New Roman', serif",
-//     rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-//     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-//   },
-// });
 export const Colors = {
   primary: "#007BFF",
   primaryLight: "#46A3FF",
@@ -53,6 +10,7 @@ export const Colors = {
   white: "#FFFFFF",
   black: "#000000",
   text: "#1A1A1A",
+  textDark: "#FFFFFF",
   gray: {
     50: "#F9FAFB",
     100: "#F3F4F6",
@@ -67,9 +25,41 @@ export const Colors = {
   },
   success: "#10B981",
   textSecondary: "#666666",
+  textSecondaryDark: "#9CA3AF",
   warning: "#F59E0B",
   error: "#EF4444",
   background: "#FFFFFF",
+  backgroundDark: "#000000",
   surface: "#F9FAFB",
+  surfaceDark: "#1C1C1E",
   border: "#E5E7EB",
-}
+  borderDark: "#38383A",
+  
+  // Theme colors for navigation
+  light: {
+    text: '#11181C',
+    background: '#fff',
+    tint: tintColorLight,
+    icon: '#687076',
+    tabIconDefault: '#687076',
+    tabIconSelected: tintColorLight,
+  },
+  dark: {
+    text: '#ECEDEE',
+    background: '#151718',
+    tint: tintColorDark,
+    icon: '#9BA1A6',
+    tabIconDefault: '#9BA1A6',
+    tabIconSelected: tintColorDark,
+  },
+};
+
+// Helper function to get colors based on dark mode
+export const getColors = (isDark: boolean) => {
+  return isDark ? Colors.dark : Colors.light;
+};
+
+// Helper to get theme-aware color
+export const useThemeColor = (isDark: boolean, lightColor: string, darkColor: string) => {
+  return isDark ? darkColor : lightColor;
+};

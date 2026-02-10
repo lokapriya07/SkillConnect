@@ -43,6 +43,7 @@ export default function ServiceUpgradeScreen() {
     const router = useRouter()
     const { setAuthenticated } = useAppStore()
     const [selectedPlan, setSelectedPlan] = useState('plus')
+    const darkMode = useAppStore((state) => state.darkMode)
 
     const subscribePlan = (planId: string) => {
         setSelectedPlan(planId)
@@ -53,6 +54,8 @@ export default function ServiceUpgradeScreen() {
             router.push('/profile')
         }, 1500)
     }
+
+    const styles = getStyles(darkMode)
 
     return (
         <View style={styles.container}>
@@ -167,10 +170,10 @@ export default function ServiceUpgradeScreen() {
     )
 }
 
-const styles = StyleSheet.create({
+const getStyles = (darkMode: boolean) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background || '#f8f9fa'
+        backgroundColor: darkMode ? Colors.backgroundDark : Colors.background || '#f8f9fa'
     },
     header: {
         flexDirection: 'row',
@@ -195,7 +198,7 @@ const styles = StyleSheet.create({
         padding: 20
     },
     heroSection: {
-        backgroundColor: '#fff',
+        backgroundColor: darkMode ? Colors.surfaceDark : '#fff',
         padding: 30,
         borderRadius: 20,
         alignItems: 'center',
@@ -217,13 +220,13 @@ const styles = StyleSheet.create({
     heroTitle: {
         fontSize: 24,
         fontWeight: '800',
-        color: Colors.text || '#111',
+        color: darkMode ? Colors.textDark : Colors.text || '#111',
         marginBottom: 8,
         textAlign: 'center'
     },
     heroSubtitle: {
         fontSize: 16,
-        color: Colors.textSecondary || '#6b7280',
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary || '#6b7280',
         textAlign: 'center',
         lineHeight: 22
     },
@@ -233,18 +236,18 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: Colors.text || '#111',
+        color: darkMode ? Colors.textDark : Colors.text || '#111',
         marginBottom: 16
     },
     plansContainer: {
         gap: 12
     },
     planCard: {
-        backgroundColor: '#fff',
+        backgroundColor: darkMode ? Colors.surfaceDark : '#fff',
         padding: 24,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: darkMode ? Colors.borderDark : '#e5e7eb',
         shadowColor: '#000',
         shadowOpacity: 0.05,
         shadowRadius: 10,
@@ -282,12 +285,12 @@ const styles = StyleSheet.create({
     planTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: Colors.text || '#111',
+        color: darkMode ? Colors.textDark : Colors.text || '#111',
         marginBottom: 4
     },
     planOriginalPrice: {
         fontSize: 14,
-        color: Colors.textSecondary || '#9ca3af',
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary || '#9ca3af',
         textDecorationLine: 'line-through',
         marginBottom: 4
     },
@@ -309,11 +312,11 @@ const styles = StyleSheet.create({
     },
     benefitText: {
         fontSize: 15,
-        color: Colors.text || '#374151',
+        color: darkMode ? Colors.textDark : Colors.text || '#374151',
         flex: 1
     },
     subscribeButton: {
-        backgroundColor: '#f3f4f6',
+        backgroundColor: darkMode ? Colors.surfaceDark : '#f3f4f6',
         paddingVertical: 14,
         borderRadius: 12,
         alignItems: 'center'
@@ -324,10 +327,10 @@ const styles = StyleSheet.create({
     subscribeButtonText: {
         fontSize: 16,
         fontWeight: '600',
-        color: Colors.textSecondary || '#6b7280'
+        color: darkMode ? Colors.textDark : Colors.textSecondary || '#6b7280'
     },
     featuresSection: {
-        backgroundColor: '#fff',
+        backgroundColor: darkMode ? Colors.surfaceDark : '#fff',
         padding: 24,
         borderRadius: 20,
         shadowColor: '#000',
@@ -347,20 +350,20 @@ const styles = StyleSheet.create({
     featureTitle: {
         fontSize: 15,
         fontWeight: '600',
-        color: Colors.text || '#111',
+        color: darkMode ? Colors.textDark : Colors.text || '#111',
         marginTop: 8,
         marginBottom: 4
     },
     featureDesc: {
         fontSize: 13,
-        color: Colors.textSecondary || '#6b7280',
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary || '#6b7280',
         textAlign: 'center'
     },
     bottomCTA: {
         padding: 20,
-        backgroundColor: '#fff',
+        backgroundColor: darkMode ? Colors.surfaceDark : '#fff',
         borderTopWidth: 1,
-        borderTopColor: '#f3f4f6'
+        borderTopColor: darkMode ? Colors.borderDark : '#f3f4f6'
     },
     primaryButton: {
         backgroundColor: Colors.primary || '#3b82f6',
@@ -377,7 +380,7 @@ const styles = StyleSheet.create({
     currentPlanText: {
         textAlign: 'center',
         fontSize: 14,
-        color: Colors.textSecondary || '#6b7280',
+        color: darkMode ? Colors.textSecondaryDark : Colors.textSecondary || '#6b7280',
         fontWeight: '500'
     }
 })

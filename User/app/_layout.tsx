@@ -2,13 +2,14 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useColorScheme } from 'react-native';
+import { useAppStore } from '@/lib/store';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const { darkMode } = useAppStore();
+  const theme = darkMode ? DarkTheme : DefaultTheme;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={theme}>
       <Stack>
         {/* 🔐 Auth Screens */}
         <Stack.Screen name="auth/login" options={{ headerShown: false, title: 'Login' }} />
@@ -30,7 +31,7 @@ export default function RootLayout() {
         <Stack.Screen name="checkout" options={{ headerShown: false }} />
         <Stack.Screen name="booking-confirmation" options={{ headerShown: false }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style={darkMode ? "light" : "dark"} />
     </ThemeProvider>
   );
 }

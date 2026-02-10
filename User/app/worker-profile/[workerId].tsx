@@ -26,6 +26,7 @@ const { width } = Dimensions.get('window');
 
 export default function WorkerDetailScreen() {
     const router = useRouter();
+    const darkMode = useAppStore((state) => state.darkMode);
 
     // Chat States
     const [chatVisible, setChatVisible] = useState(false);
@@ -188,6 +189,8 @@ export default function WorkerDetailScreen() {
         } catch (e) { }
     };
 
+    const styles = getStyles(darkMode)
+
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" translucent />
@@ -328,53 +331,53 @@ export default function WorkerDetailScreen() {
 
 // Ensure you have your styles definition here (from your previous code)
 // ... styles remain the same as your provided code
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
+const getStyles = (darkMode: boolean) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: darkMode ? Colors.backgroundDark : '#fff' },
     header: { height: 320, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 40 },
     banner: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
     gradientOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
-    backBtn: { position: 'absolute', top: 50, left: 20, backgroundColor: '#fff', padding: 10, borderRadius: 20, zIndex: 10 },
+    backBtn: { position: 'absolute', top: 50, left: 20, backgroundColor: darkMode ? Colors.surfaceDark : '#fff', padding: 10, borderRadius: 20, zIndex: 10 },
     profileSection: { alignItems: 'center' },
     imageContainer: { position: 'relative', marginBottom: 10 },
-    avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 4, borderColor: '#fff' },
-    verifiedBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#fff', borderRadius: 10, padding: 2 },
+    avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 4, borderColor: darkMode ? Colors.surfaceDark : '#fff' },
+    verifiedBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: darkMode ? Colors.surfaceDark : '#fff', borderRadius: 10, padding: 2 },
     nameText: { fontSize: 26, fontWeight: 'bold', color: '#fff' },
     expertiseText: { fontSize: 16, color: '#E2E8F0', marginTop: 4 },
-    content: { backgroundColor: '#fff', borderTopLeftRadius: 35, borderTopRightRadius: 35, marginTop: -30, padding: 25 },
+    content: { backgroundColor: darkMode ? Colors.backgroundDark : '#fff', borderTopLeftRadius: 35, borderTopRightRadius: 35, marginTop: -30, padding: 25 },
     statsRow: { flexDirection: 'row', gap: 15, marginBottom: 25 },
-    statCard: { flex: 1, backgroundColor: '#F8FAFC', padding: 15, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: '#F1F5F9' },
-    statLabel: { fontSize: 11, color: '#94A3B8', fontWeight: 'bold', marginBottom: 5 },
-    statValue: { fontSize: 20, fontWeight: 'bold', color: '#1E293B' },
+    statCard: { flex: 1, backgroundColor: darkMode ? Colors.surfaceDark : '#F8FAFC', padding: 15, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: darkMode ? Colors.borderDark : '#F1F5F9' },
+    statLabel: { fontSize: 11, color: darkMode ? Colors.textSecondaryDark : '#94A3B8', fontWeight: 'bold', marginBottom: 5 },
+    statValue: { fontSize: 20, fontWeight: 'bold', color: darkMode ? Colors.textDark : '#1E293B' },
     ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     section: { marginBottom: 25 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 12 },
-    infoBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 15, borderRadius: 15 },
-    infoText: { marginLeft: 10, color: '#475569', fontWeight: '500', flex: 1 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: darkMode ? Colors.textDark : '#1E293B', marginBottom: 12 },
+    infoBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: darkMode ? Colors.surfaceDark : '#F1F5F9', padding: 15, borderRadius: 15 },
+    infoText: { marginLeft: 10, color: darkMode ? Colors.textDark : '#475569', fontWeight: '500', flex: 1 },
     chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { backgroundColor: '#EEF2FF', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 12 },
-    chipText: { color: '#4F46E5', fontWeight: '600', fontSize: 13 },
+    chip: { backgroundColor: darkMode ? '#1E3A5F' : '#EEF2FF', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 12 },
+    chipText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
     availGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
     dayCircle: { width: 35, height: 35, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
     dayOn: { backgroundColor: Colors.primary },
-    dayOff: { backgroundColor: '#E2E8F0' },
+    dayOff: { backgroundColor: darkMode ? '#3A3A3C' : '#E2E8F0' },
     dayText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
     availStatus: { color: '#10B981', fontSize: 13, fontWeight: '600', marginLeft: 5 },
-    bottomBar: { position: 'absolute', bottom: 0, width: '100%', backgroundColor: '#fff', padding: 20, flexDirection: 'row', borderTopWidth: 1, borderColor: '#F1F5F9', paddingBottom: Platform.OS === 'ios' ? 35 : 20 },
-    secondaryBtn: { width: 60, height: 60, borderRadius: 15, borderColor: '#E2E8F0', borderWidth: 1, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+    bottomBar: { position: 'absolute', bottom: 0, width: '100%', backgroundColor: darkMode ? Colors.surfaceDark : '#fff', padding: 20, flexDirection: 'row', borderTopWidth: 1, borderColor: darkMode ? Colors.borderDark : '#F1F5F9', paddingBottom: Platform.OS === 'ios' ? 35 : 20 },
+    secondaryBtn: { width: 60, height: 60, borderRadius: 15, borderColor: darkMode ? Colors.borderDark : '#E2E8F0', borderWidth: 1, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
     primaryBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
     primaryBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
 
     // Chat Specific Styles
-    chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: '#fff' },
-    chatTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
+    chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: darkMode ? Colors.borderDark : '#E2E8F0', backgroundColor: darkMode ? Colors.backgroundDark : '#fff' },
+    chatTitle: { fontSize: 18, fontWeight: 'bold', color: darkMode ? Colors.textDark : '#1E293B' },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     msgBubble: { padding: 12, borderRadius: 20, marginBottom: 10, maxWidth: '80%' },
     userBubble: { alignSelf: 'flex-end', backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
-    workerBubble: { alignSelf: 'flex-start', backgroundColor: '#E2E8F0', borderBottomLeftRadius: 4 },
+    workerBubble: { alignSelf: 'flex-start', backgroundColor: darkMode ? '#3A3A3C' : '#E2E8F0', borderBottomLeftRadius: 4 },
     msgText: { fontSize: 15, lineHeight: 20 },
     timeText: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 4, alignSelf: 'flex-end' },
-    chatInputContainer: { flexDirection: 'row', padding: 15, borderTopWidth: 1, borderTopColor: '#E2E8F0', backgroundColor: '#fff', alignItems: 'center' },
-    chatInput: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 25, paddingHorizontal: 20, height: 45, marginRight: 10 },
+    chatInputContainer: { flexDirection: 'row', padding: 15, borderTopWidth: 1, borderTopColor: darkMode ? Colors.borderDark : '#E2E8F0', backgroundColor: darkMode ? Colors.surfaceDark : '#fff', alignItems: 'center' },
+    chatInput: { flex: 1, backgroundColor: darkMode ? '#3A3A3C' : '#F1F5F9', borderRadius: 25, paddingHorizontal: 20, height: 45, marginRight: 10, color: darkMode ? Colors.textDark : Colors.text },
     sendIconBtn: { backgroundColor: Colors.primary, width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' },
     
     // WhatsApp-style tick styles

@@ -161,6 +161,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { useAppStore } from "@/lib/store";
 
 // Refined Data Structure with Icons
 const SETTINGS_SECTIONS = [
@@ -186,37 +187,66 @@ const SETTINGS_SECTIONS = [
 ];
 
 export default function Settings() {
-  const [settings, setSettings] = useState({
-    darkMode: false,
-    notifications: true,
-    autoUpdate: true,
-  });
+  // Get dark mode from store
+  const { darkMode, toggleDarkMode, setDarkMode } = useAppStore();
+  const [notifications, setNotifications] = useState(true);
+  const [autoUpdate, setAutoUpdate] = useState(true);
 
+  // Load legacy settings from AsyncStorage (for migration)
   useEffect(() => {
     (async () => {
       try {
         const saved = await AsyncStorage.getItem("appSettings");
-        if (saved) setSettings(JSON.parse(saved));
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.notifications !== undefined) {
+            setNotifications(parsed.notifications);
+          }
+          if (parsed.autoUpdate !== undefined) {
+            setAutoUpdate(parsed.autoUpdate);
+          }
+          // Migrate dark mode to store if it was saved
+          if (parsed.darkMode !== undefined) {
+            setDarkMode(parsed.darkMode);
+          }
+        }
       } catch (e) {
         console.log("Error loading settings", e);
       }
     })();
   }, []);
 
+  // Save notifications and autoUpdate to AsyncStorage
   useEffect(() => {
-    AsyncStorage.setItem("appSettings", JSON.stringify(settings));
-  }, [settings]);
+    (async () => {
+      try {
+        await AsyncStorage.setItem("appSettings", JSON.stringify({
+          darkMode,
+          notifications,
+          autoUpdate
+        }));
+      } catch (e) {
+        console.log("Error saving settings", e);
+      }
+    })();
+  }, [notifications, autoUpdate, darkMode]);
 
   const handleToggle = (key: string) => {
-    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+    if (key === "notifications") {
+      setNotifications(!notifications);
+    } else if (key === "autoUpdate") {
+      setAutoUpdate(!autoUpdate);
+    } else if (key === "darkMode") {
+      toggleDarkMode();
+    }
   };
 
   const theme = {
-    background: settings.darkMode ? "#000000" : "#F2F2F7",
-    card: settings.darkMode ? "#1C1C1E" : "#FFFFFF",
-    text: settings.darkMode ? "#FFFFFF" : "#000000",
-    subtext: settings.darkMode ? "#8E8E93" : "#8E8E93",
-    separator: settings.darkMode ? "#38383A" : "#C6C6C8",
+    background: darkMode ? "#000000" : "#F2F2F7",
+    card: darkMode ? "#1C1C1E" : "#FFFFFF",
+    text: darkMode ? "#FFFFFF" : "#000000",
+    subtext: darkMode ? "#8E8E93" : "#8E8E93",
+    separator: darkMode ? "#38383A" : "#C6C6C8",
   };
 
   const renderItem = ({ item, index, section }: any) => {
@@ -241,7 +271,7 @@ export default function Settings() {
             <Switch
               trackColor={{ false: "#767577", true: "#34C759" }}
               thumbColor="#f4f3f4"
-              value={settings[item.id as keyof typeof settings]}
+              value={item.id === "darkMode" ? darkMode : item.id === "notifications" ? notifications : autoUpdate}
               onValueChange={() => handleToggle(item.id)}
             />
           ) : (
@@ -260,7 +290,7 @@ export default function Settings() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={settings.darkMode ? "light-content" : "dark-content"} />
+      <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} />
       
       <SectionList
         sections={SETTINGS_SECTIONS}

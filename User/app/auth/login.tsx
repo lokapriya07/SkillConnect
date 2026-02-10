@@ -254,7 +254,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   
   // Destructuring store methods
-  const { setAuthenticated, setUser } = useAppStore();
+  const { setAuthenticated, setUser, fetchActiveJobs } = useAppStore();
 
   useEffect(() => {
     if (!API_URL) {
@@ -295,16 +295,25 @@ export default function Login() {
 
       if (response.ok) {
         // 3. Success: Update Global State
-        setAuthenticated(true);
-        setUser({
-          id: data.user._id || data.user.id, // Ensure ID is captured
-          _id: data.user._id || data.user.id,
+        // Backend returns 'id' field, not '_id'
+        const userId = data.user._id || data.user.id;
+        
+        const userData = {
+          id: userId, // Use the resolved userId
+          _id: userId, // Also set _id for consistency
           name: data.user.name,
           email: data.user.email,
           phone: data.user.phone || "",
-          role: data.user.role, // Storing the role returned by the backend
-        });
+          role: data.user.role,
+        };
         
+        setAuthenticated(true);
+        setUser(userData);
+        
+        // Fetch user's jobs after setting user
+        fetchActiveJobs();
+        
+        // Navigate to welcome page
         router.replace("/welcome");
       } else {
         // 4. Handle Role Mismatch or Wrong Credentials
