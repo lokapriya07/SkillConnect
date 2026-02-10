@@ -353,23 +353,42 @@ router.post('/assign-worker', async (req, res) => {
             'plumbing': ['plumbing', 'pipe repair', 'leak detection', 'installation', 'tap', 'drain'],
             'electrical': ['electrical', 'wiring', 'repair', 'installation', 'fan', 'switchboard'],
             'painting': ['painting', 'wall painting', 'interior painting', 'exterior painting'],
-            'salon': ['salon', 'haircut', 'beauty', 'styling', 'grooming', 'spa', 'massage', 'facial'],
+            'salon': ['salon', 'haircut', 'beauty', 'styling', 'grooming', 'spa', 'massage', 'facial', 'hair styling', 'beard', 'barber'],
             'moving': ['moving', 'packing', 'lifting', 'transport'],
             'repair': ['repair', 'maintenance', 'handyman'],
             'gardening': ['gardening', 'lawn care', 'landscaping'],
             'carpentry': ['carpentry', 'wood work', 'furniture', 'polishing'],
+            'appliance': ['appliance', 'ac', 'air conditioning', 'refrigerator', 'washing machine', 'ac repair', 'ac service', 'appliance repair', 'ac installation'],
+            'pest': ['pest', 'pest control', 'cockroach', 'ant', 'termite', 'spider', 'bug', 'insect control'],
             'default': requiredSkills || []
         };
 
-        // Get skills to search for
-        const searchSkills = categorySkillsMap[serviceCategory?.toLowerCase()] || 
-                            categorySkillsMap['default'];
+        // Get the normalized service category
+        const normalizedCategory = serviceCategory?.toLowerCase().replace(/\s+/g, '');
+        
+        // Try different ways to match the category
+        let searchSkills = categorySkillsMap[normalizedCategory] || 
+                          categorySkillsMap[serviceCategory?.toLowerCase()] || 
+                          categorySkillsMap['default'];
+        
+        // If still no skills found, try to extract from service name
+        if (searchSkills === categorySkillsMap['default'] && requiredSkills && requiredSkills.length > 0) {
+            searchSkills = requiredSkills.map(s => s.toLowerCase());
+        }
 
         // Build query to find available workers with matching skills
-        // NOTE: For testing, we'll be less strict - allow all available workers
+        // Use flexible matching - workers with any of the required skills
         let workerQuery = {
             isAvailable: true,
-            skills: { $in: searchSkills.map(s => new RegExp(s, 'i')) }
+            $or: [
+                { skills: { $in: searchSkills.map(s => new RegExp(s, 'i')) } },
+                // Also match if the skill contains the category name
+                { skills: { $in: [new RegExp(serviceCategory, 'i')] } },
+                // For salon services, also match barber skills
+                ...(serviceCategory?.toLowerCase().includes('salon') || serviceCategory?.toLowerCase().includes('haircut') ? 
+                    [{ skills: { $in: [/barber/i, /hair/i, /styling/i] } }] : [])
+            ],
+            verificationStatus: 'verified' // Only show verified workers
         };
 
         // Find workers with geo query if location provided
@@ -390,31 +409,41 @@ router.post('/assign-worker', async (req, res) => {
             .sort({ rating: -1 }) // Higher rating first
             .limit(20);
 
-        // If no workers found nearby with skills, expand search radius (up to 100km)
+        // If no workers found nearby with skills, expand search radius and relax requirements
         if (workers.length === 0 && userLatitude && userLongitude) {
             workers = await Work.find({
                 isAvailable: true,
-                skills: { $in: searchSkills.map(s => new RegExp(s, 'i')) },
-                location: {
-                    $near: {
-                        $geometry: {
-                            type: 'Point',
-                            coordinates: [parseFloat(userLongitude), parseFloat(userLatitude)]
-                        },
-                        $maxDistance: 100000 // 100km radius
-                    }
-                }
+                $or: [
+                    { skills: { $in: searchSkills.map(s => new RegExp(s, 'i')) } },
+                    { skills: { $in: [/general/i, /handyman/i, /home/i] } }
+                ],
+                verificationStatus: 'verified'
             })
             .sort({ rating: -1 })
             .limit(20);
         }
 
-        // If no workers found with skills, return error - DO NOT assign workers without matching skills
+        // Last resort: show any available workers nearby (regardless of verification)
+        if (workers.length === 0 && userLatitude && userLongitude) {
+            workers = await Work.find({
+                isAvailable: true,
+            })
+            .sort({ rating: -1 })
+            .limit(10);
+        }
+
+        // If still no workers found, return a more informative message
         if (workers.length === 0) {
+            console.log('No workers found for:', { serviceCategory, searchSkills, userLatitude, userLongitude });
             return res.status(404).json({
                 success: false,
-                error: "No workers available with required skills",
-                message: "No workers found with matching skills in your area. Please try again later."
+                error: "No workers available",
+                message: "No workers with matching skills are available in your area right now. Please try again later or try a different service.",
+                debug: {
+                    category: serviceCategory,
+                    skillsSearched: searchSkills,
+                    coordinates: userLatitude && userLongitude ? { lat: userLatitude, lng: userLongitude } : null
+                }
             });
         }
 
@@ -474,11 +503,15 @@ router.post('/assign-worker', async (req, res) => {
         }
 
         // Create a job request for the assigned worker
+        // Get the total amount from the request body (sent from frontend for predefined services)
+        const totalAmountFromRequest = req.body.totalAmount || req.body.price || 0;
+        
         const jobRequest = await JobRequest.create({
             userId: userId,
             serviceName: serviceName || serviceCategory || 'Service',
             description: `${serviceName || serviceCategory || 'Service'} service booking`,
-            budget: 0, // Will be updated later
+            budget: totalAmountFromRequest, // Use the total amount from frontend
+            totalAmount: totalAmountFromRequest, // Store as totalAmount for easier access
             skillsRequired: searchSkills,
             location: {
                 type: 'Point',
@@ -490,7 +523,12 @@ router.post('/assign-worker', async (req, res) => {
                 workerName: bestWorker.name,
                 workerProfilePic: bestWorker.profilePic,
                 assignedAt: new Date()
-            }
+            },
+            // Save scheduling and address info from frontend
+            scheduledDate: req.body.scheduledDate || '',
+            scheduledTime: req.body.scheduledTime || '',
+            address: req.body.address || '',
+            fullAddress: req.body.fullAddress || req.body.address || ''
         });
 
         console.log('✅ Job created with assigned worker:', jobRequest._id);
@@ -585,7 +623,10 @@ router.get('/worker/:workerId/assigned-jobs', async (req, res) => {
             // Use job's address fields first, fallback to user's address
             address: job.fullAddress || job.address || (job.userId?.fullAddress || job.userId?.address || '') || 'Address not available',
             city: job.city || job.userId?.city || '',
-            state: job.state || job.userId?.state || ''
+            state: job.state || job.userId?.state || '',
+            // Ensure scheduledDate and scheduledTime are always returned
+            scheduledDate: job.scheduledDate || '',
+            scheduledTime: job.scheduledTime || ''
         }));
 
         res.status(200).json({

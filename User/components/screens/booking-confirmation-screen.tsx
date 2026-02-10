@@ -68,8 +68,9 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
             setLoadingWorker(true)
             setError(null)
 
-            // Get service category from booking items
-            const serviceCategory = currentBooking.items[0]?.service?.category || 
+            // Get service category from booking items - use booking's serviceCategory if available
+            const serviceCategory = currentBooking.serviceCategory || 
+                                   currentBooking.items[0]?.service?.category || 
                                    currentBooking.items[0]?.service?.name?.toLowerCase() || 
                                    'default'
 
@@ -96,7 +97,14 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
                     userLatitude,
                     userLongitude,
                     requiredSkills: currentBooking.items[0]?.service?.name ? 
-                        [currentBooking.items[0].service.name.toLowerCase()] : []
+                        [currentBooking.items[0].service.name.toLowerCase()] : [],
+                    totalAmount: currentBooking.total || currentBooking.items[0]?.service?.price || 0,
+                    price: currentBooking.total || currentBooking.items[0]?.service?.price || 0,
+                    // Send scheduling info
+                    scheduledDate: currentBooking.date || null,
+                    scheduledTime: currentBooking.time || null,
+                    address: currentBooking.address || currentLocation?.address || '',
+                    fullAddress: currentBooking.address || currentLocation?.address || ''
                 }),
             })
 

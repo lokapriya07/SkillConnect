@@ -12,7 +12,9 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Clock,
   DollarSign,
@@ -180,6 +182,9 @@ interface DisplayJob {
   scheduledDate?: string;
   scheduledTime?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
+  paymentMethod?: string;
   serviceDetails?: ServiceDetails;
   originalJob?: any;
   // Legacy job properties
@@ -212,6 +217,7 @@ const mockBookedServices: DisplayJob[] = [
     progress: 0,
     isAssignedJob: true,
     address: "123, Sunshine Apartments, Sector 15, Noida, UP",
+    paymentMethod: "UPI Payment",
     serviceDetails: {
       serviceType: "Salon at Home",
       requirements: ["All equipment provided", "Power backup required", "Water access needed"],
@@ -236,6 +242,7 @@ const mockBookedServices: DisplayJob[] = [
     progress: 35,
     isAssignedJob: true,
     address: "456, Green Valley Society, Indirapuram, Ghaziabad, UP",
+    paymentMethod: "Credit/Debit Card",
     serviceDetails: {
       serviceType: "Home Cleaning",
       requirements: ["Access to water and electricity", "Parking space available", "Keep pets away"],
@@ -260,6 +267,7 @@ const mockBookedServices: DisplayJob[] = [
     progress: 0,
     isAssignedJob: true,
     address: "789, Royal Enclave, Vasundhara, Sector 4, Ghaziabad, UP",
+    paymentMethod: "Cash on Service",
     serviceDetails: {
       serviceType: "Plumbing",
       requirements: ["Access to main water valve", "Tools available", "Clear working space"],
@@ -284,6 +292,7 @@ const mockBookedServices: DisplayJob[] = [
     progress: 60,
     isAssignedJob: true,
     address: "321, Tower Block, Mayur Vihar Phase 1, Delhi, NCR",
+    paymentMethod: "Digital Wallet",
     serviceDetails: {
       serviceType: "Electrical",
       requirements: ["Main switch access", "Ladder available", "Clear work area"],
@@ -308,6 +317,7 @@ const mockBookedServices: DisplayJob[] = [
     progress: 100,
     isAssignedJob: true,
     address: "654, Lake View Apartments, Sector 62, Noida, UP",
+    paymentMethod: "Credit/Debit Card",
     serviceDetails: {
       serviceType: "Home Cleaning",
       requirements: ["Access to water", "Clear sofa area", "Ventilation"],
@@ -332,6 +342,7 @@ const mockBookedServices: DisplayJob[] = [
     progress: 0,
     isAssignedJob: true,
     address: "987, Heritage Homes, Raj Nagar Extension, Ghaziabad, UP",
+    paymentMethod: "UPI Payment",
     serviceDetails: {
       serviceType: "Electrical",
       requirements: ["Ladder required", "Power access", "New fan available"],
@@ -486,6 +497,25 @@ export default function ActiveJobsPage() {
     }
   };
 
+  // --- Helper: Open Google Maps ---
+  const openGoogleMaps = (job: DisplayJob) => {
+    const address = job.address || "";
+    const encodedAddress = encodeURIComponent(address);
+    
+    // Try to open with coordinates if available
+    if (job.latitude && job.longitude) {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${job.latitude},${job.longitude}`;
+      Linking.openURL(url).catch(() => {
+        // Fallback to address search
+        const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+        Linking.openURL(fallbackUrl);
+      });
+    } else {
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+      Linking.openURL(url);
+    }
+  };
+
   // --- Transform Assigned Jobs to Display Format ---
   const displayAssignedJobs = useMemo(() => {
     // Transform API jobs to display format
@@ -499,17 +529,20 @@ export default function ActiveJobsPage() {
         userName: job.userName || "Customer",
         userPhone: job.userPhone || "+91 00000 00000",
         userEmail: job.userEmail || "",
-        totalAmount: job.budget || 0,
-        paidAmount: 0,
-        scheduledDate: job.scheduledDate || new Date(job.createdAt).toLocaleDateString("en-GB"),
-        scheduledTime: job.scheduledTime || "09:00 AM - 10:00 AM",
+        totalAmount: job.budget || job.totalAmount || 0,
+        paidAmount: job.paidAmount || 0,
+        scheduledDate: job.scheduledDate || job.scheduleddate || job.date || "Date not set",
+        scheduledTime: job.scheduledTime || job.scheduledtime || job.time || "Time not set",
         status: job.status === "assigned" ? "upcoming" : job.status === "in_progress" ? "in-progress" : job.status === "completed" ? "completed" : "upcoming",
         progress: job.status === "in_progress" ? 50 : 0,
         unreadMessages: 0,
         isOnline: false,
-        address: job.address || "Address not available",
+        address: job.fullAddress || job.address || (job.userId?.fullAddress || job.userId?.address || '') || "Address not available",
+        latitude: job.location?.coordinates?.[1],
+        longitude: job.location?.coordinates?.[0],
+        paymentMethod: job.paymentMethod || "Cash on Service",
         serviceDetails: mockDetails,
-        milestones: [{ id: "m1", title: "Complete service", amount: job.budget || 0, status: "pending" }],
+        milestones: [{ id: "m1", title: "Complete service", amount: job.budget || job.totalAmount || 0, status: "pending" }],
         isAssignedJob: true,
         originalJob: job,
       };
@@ -729,8 +762,14 @@ export default function ActiveJobsPage() {
                       <Text style={styles.metaValueText}>₹{job.totalAmount}</Text>
                     </View>
                     <View style={styles.metaItem}>
-                      <MapPin size={14} color="#64748b" />
+                      <Ionicons name="location-sharp" size={14} color="#EA4335" />
                       <Text style={styles.metaLabelText} numberOfLines={1}>{job.address?.split(',')[0] || "Address"}</Text>
+                      <TouchableOpacity 
+                        style={styles.metaMapsButton}
+                        onPress={() => openGoogleMaps(job)}
+                      >
+                        <Ionicons name="navigate" size={14} color="#4285F4" />
+                      </TouchableOpacity>
                     </View>
                     {job.unreadMessages > 0 && (
                       <View style={styles.metaItem}>
@@ -822,8 +861,14 @@ export default function ActiveJobsPage() {
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Service Address</Text>
                 <View style={styles.addressRow}>
-                  <MapPin size={18} color="#64748b" />
+                  <Ionicons name="location-sharp" size={18} color="#EA4335" />
                   <Text style={styles.addressText}>{selectedJob?.address}</Text>
+                  <TouchableOpacity 
+                    style={styles.mapsButton}
+                    onPress={() => selectedJob && openGoogleMaps(selectedJob)}
+                  >
+                    <Ionicons name="navigate" size={18} color="#4285F4" />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -844,6 +889,14 @@ export default function ActiveJobsPage() {
                     <Text style={[styles.paymentValue, { color: '#b45309' }]}>₹{(selectedJob?.totalAmount || 0) - (selectedJob?.paidAmount || 0)}</Text>
                   </View>
                 </View>
+                {selectedJob?.paymentMethod && (
+                  <View style={[styles.paymentRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9' }]}>
+                    <View style={styles.paymentItem}>
+                      <Text style={styles.paymentLabel}>Payment Method</Text>
+                      <Text style={styles.paymentValue}>{selectedJob.paymentMethod}</Text>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Requirements */}
@@ -1036,6 +1089,8 @@ const styles = StyleSheet.create({
   scheduleText: { fontSize: 14, color: "#0f172a" },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   addressText: { fontSize: 14, color: "#0f172a", flex: 1 },
+  mapsButton: { padding: 4, borderRadius: 4, backgroundColor: '#e0e7ff' },
+  metaMapsButton: { marginLeft: 4, padding: 2 },
   paymentRow: { flexDirection: "row", justifyContent: "space-between" },
   paymentItem: { alignItems: "center" },
   paymentLabel: { fontSize: 12, color: "#64748b", marginBottom: 4 },

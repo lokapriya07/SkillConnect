@@ -34,12 +34,14 @@ export interface Address {
 
 export interface Booking {
   id: string
+  userId?: string  // Optional - for backwards compatibility
   items: CartItem[]
   total: number
   status: "confirmed" | "in-progress" | "completed" | "cancelled"
   date: string
   time: string
   address: string
+  paymentMethod: string
   serviceCategory?: string
   assignedWorker?: AssignedWorker
 }

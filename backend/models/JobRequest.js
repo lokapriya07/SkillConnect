@@ -65,6 +65,30 @@ const jobRequestSchema = new mongoose.Schema(
     fullAddress: {
       type: String,
       default: ''
+    },
+
+    // Scheduling info
+    scheduledDate: {
+      type: String,
+      default: ''
+    },
+    scheduledTime: {
+      type: String,
+      default: ''
+    },
+
+    // Payment info
+    paymentMethod: {
+      type: String,
+      default: ''
+    },
+    totalAmount: {
+      type: Number,
+      default: 0
+    },
+    paidAmount: {
+      type: Number,
+      default: 0
     }
   },
   { timestamps: true }

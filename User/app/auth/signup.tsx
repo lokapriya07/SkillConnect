@@ -382,7 +382,7 @@ export default function Signup() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: {  backgroundColor: colors.background },
   scrollContent: { padding: 25, flexGrow: 1, justifyContent: 'center' },
   rolePicker: { flexDirection: 'row', backgroundColor: '#E1F0FF', borderRadius: 12, padding: 5, marginBottom: 30 },
   roleOption: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   header: { alignItems: "center", marginBottom: 30 },
   title: { fontSize: 28, fontWeight: "bold", color: colors.darkText },
   subtitle: { fontSize: 16, color: colors.mutedText },
-  card: { backgroundColor: colors.cardBg, borderRadius: 20, padding: 20, elevation: 5 },
+  card: { top: 40, backgroundColor: colors.cardBg, borderRadius: 20, padding: 30, elevation: 5 },
   inputLabel: { fontWeight: "600", marginBottom: 8, color: colors.darkText },
   input: { backgroundColor: "#F8FAFC", borderWidth: 1.5, borderColor: colors.inputBorder, borderRadius: 12, padding: 15, marginBottom: 20 },
   passwordContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: "#F8FAFC", borderWidth: 1.5, borderColor: colors.inputBorder, borderRadius: 12, paddingHorizontal: 15, marginBottom: 20 },

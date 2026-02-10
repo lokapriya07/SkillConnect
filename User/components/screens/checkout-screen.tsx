@@ -32,7 +32,7 @@ const paymentMethods = [
 
 export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProps) {
   // 1. Get data from Global Store
-  const { cart, getCartTotal, currentLocation, addBooking, clearCart, activeJobs, clearJobs, darkMode } = useAppStore()
+  const { cart, getCartTotal, currentLocation, addBooking, clearCart, activeJobs, clearJobs, darkMode, user } = useAppStore()
   
   // Get the first/most recent active job for checkout
   const activeJob = activeJobs[0]
@@ -85,8 +85,17 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
       // Determine if this is truly a bid flow (user submitted a custom bid amount)
       const hasBidAmount = bidAmount && bidAmount !== "" && parseFloat(bidAmount) > 0;
       
+      // Get payment method name from ID
+      const paymentMethodName = paymentMethods.find(p => p.id === selectedPayment)?.name || "Cash on Service";
+      
+      // Extract service category from cart or active job
+      const serviceCategory = hasBidAmount 
+        ? 'custom'
+        : (cart[0]?.service?.category || cart[0]?.service?.name?.toLowerCase() || 'general');
+      
       const newBooking = {
         id: Math.random().toString(36).substr(2, 9),
+        userId: user?._id || user?.id || '', // Add userId to associate booking with user
         items: hasBidAmount && activeJob?.description
           ? [
               {
@@ -110,6 +119,8 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
         date: selectedDate.toDateString(),
         time: selectedTime,
         address: currentLocation?.address || "Default Address",
+        paymentMethod: paymentMethodName,
+        serviceCategory: serviceCategory, // Store category for worker matching
       }
 
       addBooking(newBooking)
