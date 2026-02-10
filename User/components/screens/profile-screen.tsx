@@ -369,7 +369,7 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
     const { user, isAuthenticated } = useAppStore()
     const router = useRouter()
     const insets = useSafeAreaInsets()
-    console.log("User object:", user)
+   
 
 
     return (
