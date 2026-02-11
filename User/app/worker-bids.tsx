@@ -14,6 +14,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from "@/constants/Colors";
+import { useAppStore } from '@/lib/store';
 
 interface Bid {
     _id: string;
@@ -32,11 +33,12 @@ interface Bid {
 export default function WorkerBidsScreen() {
     const { jobId } = useLocalSearchParams();
     const router = useRouter();
+    const darkMode = useAppStore((state) => state.darkMode);
 
     const [bids, setBids] = useState<Bid[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:5000';
+    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
     useEffect(() => {
         if (jobId) fetchBids();
@@ -136,13 +138,15 @@ export default function WorkerBidsScreen() {
         );
     };
 
+    const styles = getStyles(darkMode);
+
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="dark-content" />
 
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                    <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+                    <Ionicons name="arrow-back" size={24} color={darkMode ? Colors.textDark : "#1A1A1A"} />
                 </TouchableOpacity>
                 <View>
                     <Text style={styles.headerTitle}>Worker Proposals</Text>
@@ -165,7 +169,7 @@ export default function WorkerBidsScreen() {
                     renderItem={renderBidItem}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="people-outline" size={60} color="#DDD" />
+                            <Ionicons name="people-outline" size={60} color={darkMode ? Colors.gray[600] : "#DDD"} />
                             <Text style={styles.emptyText}>Waiting for proposals...</Text>
                         </View>
                     }
@@ -175,24 +179,24 @@ export default function WorkerBidsScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FBFBFC' },
+const getStyles = (darkMode: boolean) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: darkMode ? Colors.backgroundDark : '#FBFBFC' },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: 16,
-        backgroundColor: '#FFF',
+        backgroundColor: darkMode ? Colors.surfaceDark : '#FFF',
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+        borderBottomColor: darkMode ? Colors.borderDark : '#F0F0F0',
     },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#1A1A1A' },
-    headerSubtitle: { fontSize: 13, color: '#888' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: darkMode ? Colors.textDark : '#1A1A1A' },
+    headerSubtitle: { fontSize: 13, color: darkMode ? Colors.textSecondaryDark : '#888' },
     backBtn: { padding: 8 },
-    refreshBtn: { padding: 8, backgroundColor: '#F0F7F0', borderRadius: 10 },
+    refreshBtn: { padding: 8, backgroundColor: darkMode ? '#1E3A5F' : '#F0F7F0', borderRadius: 10 },
     listContent: { padding: 16 },
     card: {
-        backgroundColor: '#FFF',
+        backgroundColor: darkMode ? Colors.surfaceDark : '#FFF',
         borderRadius: 20,
         padding: 16,
         marginBottom: 16,
@@ -208,7 +212,7 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 20,
-        backgroundColor: '#F0F0F0',
+        backgroundColor: darkMode ? Colors.gray[700] : '#F0F0F0',
     },
     initialsAvatar: {
         backgroundColor: Colors.primary,
@@ -225,16 +229,16 @@ const styles = StyleSheet.create({
         borderRadius: 7,
         backgroundColor: '#4CAF50',
         borderWidth: 2,
-        borderColor: '#FFF',
+        borderColor: darkMode ? Colors.surfaceDark : '#FFF',
     },
     workerMeta: { flex: 1, marginLeft: 15 },
-    workerName: { fontSize: 17, fontWeight: '700', color: '#1A1A1A' },
-    expertiseText: { fontSize: 13, color: '#666', marginVertical: 2 },
+    workerName: { fontSize: 17, fontWeight: '700', color: darkMode ? Colors.textDark : '#1A1A1A' },
+    expertiseText: { fontSize: 13, color: darkMode ? Colors.textSecondaryDark : '#666', marginVertical: 2 },
     ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-    ratingText: { fontSize: 13, fontWeight: '700', marginLeft: 4, color: '#1A1A1A' },
-    reviewCount: { fontSize: 12, color: '#999', marginLeft: 4 },
+    ratingText: { fontSize: 13, fontWeight: '700', marginLeft: 4, color: darkMode ? Colors.textDark : '#1A1A1A' },
+    reviewCount: { fontSize: 12, color: darkMode ? '#888' : '#999', marginLeft: 4 },
     priceSection: { alignItems: 'flex-end' },
-    bidLabel: { fontSize: 10, fontWeight: 'bold', color: '#999', marginBottom: 2 },
+    bidLabel: { fontSize: 10, fontWeight: 'bold', color: darkMode ? Colors.textSecondaryDark : '#999', marginBottom: 2 },
     amount: { fontSize: 20, fontWeight: '800', color: Colors.primary },
     cardFooter: {
         flexDirection: 'row',
@@ -243,21 +247,21 @@ const styles = StyleSheet.create({
         marginTop: 16,
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: '#F9F9F9',
+        borderTopColor: darkMode ? Colors.borderDark : '#F9F9F9',
     },
     skillsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1 },
     skillTag: {
-        backgroundColor: '#F3F4F6',
+        backgroundColor: darkMode ? '#1E3A5F' : '#F3F4F6',
         paddingHorizontal: 10,
         paddingVertical: 5,
         borderRadius: 8,
         marginRight: 8,
     },
-    skillTagText: { fontSize: 11, color: '#4B5563', fontWeight: '600' },
-    moreSkills: { fontSize: 11, color: '#9CA3AF' },
+    skillTagText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
+    moreSkills: { fontSize: 11, color: darkMode ? Colors.textSecondaryDark : '#9CA3AF' },
     viewButton: { flexDirection: 'row', alignItems: 'center' },
     viewButtonText: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginRight: 4 },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyContainer: { alignItems: 'center', marginTop: 100 },
-    emptyText: { fontSize: 16, color: '#999', marginTop: 10 }
+    emptyText: { fontSize: 16, color: darkMode ? Colors.textSecondaryDark : '#999', marginTop: 10 }
 });

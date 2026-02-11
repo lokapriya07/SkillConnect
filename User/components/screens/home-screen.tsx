@@ -84,7 +84,7 @@ export const serviceImages: Record<string, string> = {
 
 export default function HomeScreen() {
   const router = useRouter()
-  const { currentLocation, getCartCount, activeJobs, user, fetchActiveJobs } = useAppStore()
+  const { currentLocation, getCartCount, activeJobs, user, fetchActiveJobs, darkMode } = useAppStore()
 
   // Carousel Logic
   const [activeIndex, setActiveIndex] = useState(0)
@@ -93,10 +93,27 @@ export default function HomeScreen() {
   const featuredServices = getFeaturedServices()
   const popularServices = getPopularServices()
   const cartCount = getCartCount()
- useEffect(() => {
-  const interval = setInterval(() => {
-    setActiveIndex(prev => {
-      const nextIndex = prev === BANNERS.length - 1 ? 0 : prev + 1;
+  
+  // Theme colors
+  const themeColors = darkMode ? Colors.dark : Colors.light
+  const backgroundColor = darkMode ? Colors.backgroundDark : Colors.background
+  const surfaceColor = darkMode ? Colors.surfaceDark : Colors.surface
+  const surfaceVariantColor = darkMode ? Colors.gray[800] : Colors.gray[100]
+  const textColor = darkMode ? Colors.textDark : Colors.text
+  const secondaryTextColor = darkMode ? Colors.textSecondaryDark : Colors.textSecondary
+  const borderColor = darkMode ? Colors.borderDark : Colors.border
+  const trackerCardBg = darkMode ? Colors.gray[900] : Colors.white
+  const trackerTextColor = darkMode ? "#A0A0A0" : "#666"
+
+  useEffect(() => {
+    if (user) {
+      fetchActiveJobs();
+    }
+  }, [user]);
+  // Auto-slide effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
       flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
       return nextIndex;
     });
@@ -132,8 +149,170 @@ export default function HomeScreen() {
     router.push(`/category/${item.categoryId}` as any);
   };
 
+  // Dynamic styles based on theme
+  const getStyles = () => StyleSheet.create({
+    container: { flex: 1, backgroundColor: backgroundColor },
+    locationContainer: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+    locationTextContainer: { marginLeft: 8 },
+    locationLabel: { fontSize: 12, color: "rgba(255,255,255,0.8)" },
+    locationValue: { fontSize: 14, fontWeight: "600", color: Colors.white, maxWidth: 250 },
+    searchText: { marginLeft: 10, color: "rgba(255,255,255,0.9)", fontSize: 14 },
+    content: { flex: 1 },
+    bestLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '600' },
+    pagination: { flexDirection: 'row', justifyContent: 'center', marginTop: 15 },
+    dot: { height: 8, borderRadius: 4, marginHorizontal: 4 },
+
+    // Active Job Status Card
+    activeJobSection: { paddingHorizontal: 20, marginTop: 20 },
+    activeJobCard: {
+      backgroundColor: darkMode ? "#1A2332" : "#F0F7FF",
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: darkMode ? "#2D3A4F" : "#D0E4FF",
+      elevation: 3,
+    },
+    activeJobHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+    statusBadge: { flexDirection: "row", alignItems: "center" },
+    activeJobBudget: { fontSize: 16, fontWeight: "800", color: Colors.primary },
+    activeJobDesc: { fontSize: 14, color: secondaryTextColor, fontStyle: "italic", marginBottom: 12 },
+    activeJobFooter: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", borderTopWidth: 1, borderTopColor: borderColor, paddingTop: 8 },
+    viewBidsText: { fontSize: 13, fontWeight: "600", color: Colors.primary, marginRight: 4 },
+
+    sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+    seeAllBtn: { flexDirection: "row", alignItems: "center" },
+    seeAllText: { fontSize: 14, color: Colors.primary, fontWeight: "600", marginRight: 2 },
+    categoriesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+    categoryItem: { width: "23%", alignItems: "center", marginBottom: 16 },
+    categoryIcon: { width: 55, height: 55, borderRadius: 15, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+    categoryName: { fontSize: 11, fontWeight: "600", color: textColor, textAlign: "center" },
+    horizontalScroll: { paddingRight: 20 },
+    featuredCard: { width: 160, backgroundColor: surfaceColor, borderRadius: 16, marginRight: 12, borderWidth: 1, borderColor: borderColor, overflow: "hidden" },
+    featuredImageContainer: { height: 100, backgroundColor: surfaceVariantColor, position: "relative" },
+    featuredImage: { width: "100%", height: "100%", resizeMode: "cover" },
+    discountBadge: { position: "absolute", top: 8, left: 8, backgroundColor: Colors.error, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+    discountText: { color: Colors.white, fontSize: 10, fontWeight: "700" },
+    featuredContent: { padding: 10 },
+    serviceName: { fontSize: 14, fontWeight: "600", color: textColor, marginBottom: 4 },
+    ratingRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+    ratingText: { fontSize: 12, color: secondaryTextColor, marginLeft: 4 },
+    priceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    price: { fontSize: 14, fontWeight: "700", color: Colors.primary },
+    originalPrice: { fontSize: 12, color: secondaryTextColor, textDecorationLine: "line-through" },
+    popularList: { gap: 12 },
+    popularCard: { flexDirection: "row", backgroundColor: surfaceColor, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: borderColor, alignItems: "center" },
+    popularImage: { width: 70, height: 70, borderRadius: 8, resizeMode: "cover" },
+    popularContent: { flex: 1, marginLeft: 12 },
+    popularName: { fontSize: 15, fontWeight: "600", color: textColor, marginBottom: 4 },
+    bottomNav: {
+      position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around",
+      backgroundColor: surfaceColor, paddingVertical: 12, borderTopWidth: 1, borderTopColor: borderColor,
+      paddingBottom: Platform.OS === "ios" ? 24 : 12, elevation: 20
+    }, 
+    navItem: { alignItems: "center", justifyContent: "center" },
+    navText: { fontSize: 10, marginTop: 4, color: secondaryTextColor, fontWeight: "500" },
+    cartBadge: { position: "absolute", top: -5, right: -8, backgroundColor: Colors.primary, borderRadius: 8, width: 16, height: 16, justifyContent: "center", alignItems: "center" },
+    cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: "bold" },
+    header: {
+      backgroundColor: "#000", // Background color set to black
+      paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 20 : 60,
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+      borderBottomLeftRadius: 24,
+      borderBottomRightRadius: 24,
+      zIndex: 10,
+      overflow: 'hidden', // Required to keep image within rounded corners
+    },
+    searchBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.6)", // Darker translucent background for search
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.2)",
+    },
+    // Carousel Styles
+    carouselSection: { marginVertical: 0 },
+    bannerWrapper: { width: width, paddingHorizontal: 15 },
+    bannerCard: {
+      height: 180,
+      borderRadius: 24,
+      flexDirection: 'row',
+      overflow: 'hidden',
+      padding: 20,
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 5,
+    },
+    bannerContent: { flex: 1.2, zIndex: 5, justifyContent: 'center' },
+    offerBadge: {
+      backgroundColor: 'rgba(255,255,255,0.25)',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+      alignSelf: 'flex-start',
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.5)',
+    },
+    offerBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    bannerTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', marginBottom: 4 },
+    bannerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '500', marginBottom: 15 },
+    bookNowBtn: {
+      backgroundColor: '#FFF',
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 12,
+      alignSelf: 'flex-start'
+    },
+    bookNowText: { color: '#000', fontSize: 12, fontWeight: 'bold' },
+
+    // Floating Image Effect
+    bannerImage: {
+      width: 180,
+      height: 200,
+      resizeMode: 'cover',
+      // Makes it a circle like the video
+      position: 'absolute',
+      right: -10,
+      borderWidth: 4,
+      borderColor: 'rgba(255,255,255,0.3)'
+    },
+    imageBgCircle: {
+      position: 'absolute',
+      width: 200,
+      height: 200,
+      borderRadius: 100,
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      right: -40,
+      top: -20,
+    },
+    trackerContainer: { padding: 10, marginTop: -1 },
+    trackerCard: { backgroundColor: trackerCardBg, borderRadius: 15, padding: 20, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
+    trackerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    statusGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    pulseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4CAF50' },
+    statusText: { color: '#4CAF50', fontWeight: 'bold', fontSize: 12 },
+    trackerBudget: { fontWeight: 'bold', fontSize: 16, color: textColor },
+    trackerDesc: { color: trackerTextColor, marginVertical: 8, fontSize: 14, fontStyle: "italic" },
+    trackerFooter: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: borderColor, paddingTop: 10, marginTop: 5 },
+    actionText: { color: Colors.primary, fontWeight: '700' },
+
+    section: { padding: 20 },
+    sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: textColor },
+    grid: { flexDirection: 'row', justifyContent: 'space-between' },
+    catItem: { alignItems: 'center', gap: 8 },
+    iconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: surfaceVariantColor, justifyContent: "center", alignItems: "center" },
+    catLabel: { fontSize: 12, fontWeight: "500", color: textColor },
+  })
+
+  const styles = getStyles()
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: backgroundColor }]}>
       <StatusBar barStyle="light-content" />
       {/* Header */}
       {/* Updated Header with Republic Day Background */}
@@ -258,23 +437,20 @@ export default function HomeScreen() {
                       {/* Use the formattedSubtitle here */}
                       <Text style={styles.bannerSubtitle}>{formattedSubtitle}</Text>
 
-                      {/* <TouchableOpacity style={styles.bookNowBtn}>
-                        <Text style={styles.bookNowText}>BOOK NOW</Text>
-                      </TouchableOpacity> */}
                       <TouchableOpacity 
-  style={styles.bookNowBtn} 
-  onPress={() => {
-    // If a specific serviceId exists, go to that service page
-    // Otherwise, fall back to the category page
-    if (item.serviceId) {
-      router.push(`/service/${item.serviceId}`);
-    } else {
-      router.push(`/category/${item.categoryId}` as any);
-    }
-  }}
->
-  <Text style={styles.bookNowText}>BOOK NOW</Text>
-</TouchableOpacity>
+                        style={styles.bookNowBtn} 
+                        onPress={() => {
+                          // If a specific serviceId exists, go to that service page
+                          // Otherwise, fall back to the category page
+                          if (item.serviceId) {
+                            router.push(`/service/${item.serviceId}`);
+                          } else {
+                            router.push(`/category/${item.categoryId}` as any);
+                          }
+                        }}
+                      >
+                        <Text style={styles.bookNowText}>BOOK NOW</Text>
+                      </TouchableOpacity>
                     </View>
 
                     <View style={styles.imageBgCircle} />
@@ -411,16 +587,16 @@ export default function HomeScreen() {
           <Text style={[styles.navText, { color: Colors.primary }]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToUpload}>
-          <Ionicons name="cloud-upload-outline" size={24} color={Colors.textSecondary} />
+          <Ionicons name="cloud-upload-outline" size={24} color={secondaryTextColor} />
           <Text style={styles.navText}>Upload</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToSearch}>
-          <Ionicons name="search-outline" size={24} color={Colors.textSecondary} />
+          <Ionicons name="search-outline" size={24} color={secondaryTextColor} />
           <Text style={styles.navText}>Search</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToCart}>
           <View>
-            <Ionicons name="cart-outline" size={24} color={Colors.textSecondary} />
+            <Ionicons name="cart-outline" size={24} color={secondaryTextColor} />
             {cartCount > 0 && (
               <View style={styles.cartBadge}>
                 <Text style={styles.cartBadgeText}>{cartCount}</Text>
@@ -430,173 +606,10 @@ export default function HomeScreen() {
           <Text style={styles.navText}>Cart</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={goToProfile}>
-          <Ionicons name="person-outline" size={24} color={Colors.textSecondary} />
+          <Ionicons name="person-outline" size={24} color={secondaryTextColor} />
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  locationContainer: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  locationTextContainer: { marginLeft: 8 },
-  locationLabel: { fontSize: 12, color: "rgba(255,255,255,0.8)" },
-  locationValue: { fontSize: 14, fontWeight: "600", color: Colors.white, maxWidth: 250 },
-  searchText: { marginLeft: 10, color: "rgba(255,255,255,0.9)", fontSize: 14 },
-  content: { flex: 1 },
-  bestLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '600' },
-  pagination: { flexDirection: 'row', justifyContent: 'center', marginTop: 15 },
-  dot: { height: 8, borderRadius: 4, marginHorizontal: 4 },
-
-  // Active Job Status Card
-  activeJobSection: { paddingHorizontal: 20, marginTop: 20 },
-  activeJobCard: {
-    backgroundColor: "#F0F7FF",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#D0E4FF",
-    elevation: 3,
-  },
-  activeJobHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  statusBadge: { flexDirection: "row", alignItems: "center" },
-  // pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22C55E", marginRight: 6 },
-  // statusText: { fontSize: 13, fontWeight: "700", color: "#1E40AF" },
-  activeJobBudget: { fontSize: 16, fontWeight: "800", color: Colors.primary },
-  activeJobDesc: { fontSize: 14, color: Colors.textSecondary, fontStyle: "italic", marginBottom: 12 },
-  activeJobFooter: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", borderTopWidth: 1, borderTopColor: "#D0E4FF", paddingTop: 8 },
-  viewBidsText: { fontSize: 13, fontWeight: "600", color: Colors.primary, marginRight: 4 },
-
-  // section: { paddingVertical: 15, paddingHorizontal: 20 },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  // sectionTitle: { fontSize: 18, fontWeight: "700", color: Colors.text },
-  seeAllBtn: { flexDirection: "row", alignItems: "center" },
-  seeAllText: { fontSize: 14, color: Colors.primary, fontWeight: "600", marginRight: 2 },
-  categoriesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  categoryItem: { width: "23%", alignItems: "center", marginBottom: 16 },
-  categoryIcon: { width: 55, height: 55, borderRadius: 15, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  categoryName: { fontSize: 11, fontWeight: "600", color: Colors.text, textAlign: "center" },
-  horizontalScroll: { paddingRight: 20 },
-  featuredCard: { width: 160, backgroundColor: Colors.white, borderRadius: 16, marginRight: 12, borderWidth: 1, borderColor: Colors.border, overflow: "hidden" },
-  featuredImageContainer: { height: 100, backgroundColor: "#f0f0f0", position: "relative" },
-  featuredImage: { width: "100%", height: "100%", resizeMode: "cover" },
-  discountBadge: { position: "absolute", top: 8, left: 8, backgroundColor: Colors.error, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  discountText: { color: Colors.white, fontSize: 10, fontWeight: "700" },
-  featuredContent: { padding: 10 },
-  serviceName: { fontSize: 14, fontWeight: "600", color: Colors.text, marginBottom: 4 },
-  ratingRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-  ratingText: { fontSize: 12, color: Colors.textSecondary, marginLeft: 4 },
-  priceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  price: { fontSize: 14, fontWeight: "700", color: Colors.primary },
-  originalPrice: { fontSize: 12, color: Colors.textSecondary, textDecorationLine: "line-through" },
-  popularList: { gap: 12 },
-  popularCard: { flexDirection: "row", backgroundColor: Colors.white, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: Colors.border, alignItems: "center" },
-  popularImage: { width: 70, height: 70, borderRadius: 8, resizeMode: "cover" },
-  popularContent: { flex: 1, marginLeft: 12 },
-  popularName: { fontSize: 15, fontWeight: "600", color: Colors.text, marginBottom: 4 },
-  bottomNav: {
-    position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around",
-    backgroundColor: Colors.white, paddingVertical: 12, borderTopWidth: 1, borderTopColor: Colors.border,
-    paddingBottom: Platform.OS === "ios" ? 24 : 12, elevation: 20
-  }, 
-  navItem: { alignItems: "center", justifyContent: "center" },
-  navText: { fontSize: 10, marginTop: 4, color: Colors.textSecondary, fontWeight: "500" },
-  cartBadge: { position: "absolute", top: -5, right: -8, backgroundColor: Colors.primary, borderRadius: 8, width: 16, height: 16, justifyContent: "center", alignItems: "center" },
-  cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: "bold" },
-  header: {
-    backgroundColor: "#000", // Background color set to black
-    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 20 : 60,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    zIndex: 10,
-    overflow: 'hidden', // Required to keep image within rounded corners
-  },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.6)", // Darker translucent background for search
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
-  // Carousel Styles
-  carouselSection: { marginVertical: 0 },
-  bannerWrapper: { width: width, paddingHorizontal: 15 },
-  bannerCard: {
-    height: 180,
-    borderRadius: 24,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    padding: 20,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-  },
-  bannerContent: { flex: 1.2, zIndex: 5, justifyContent: 'center' },
-  offerBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  offerBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  bannerTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', marginBottom: 4 },
-  bannerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '500', marginBottom: 15 },
-  bookNowBtn: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignSelf: 'flex-start'
-  },
-  bookNowText: { color: '#000', fontSize: 12, fontWeight: 'bold' },
-
-  // Floating Image Effect
-  bannerImage: {
-    width: 180,
-    height: 200,
-    resizeMode: 'cover',
-    // Makes it a circle like the video
-    position: 'absolute',
-    right: -10,
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.3)'
-  },
-  imageBgCircle: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    right: -40,
-    top: -20,
-  },
-  trackerContainer: { padding: 10, marginTop: -1 },
-  trackerCard: { backgroundColor: 'white', borderRadius: 15, padding: 20, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
-  trackerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statusGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pulseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4CAF50' },
-  statusText: { color: '#4CAF50', fontWeight: 'bold', fontSize: 12 },
-  trackerBudget: { fontWeight: 'bold', fontSize: 16 },
-  trackerDesc: { color: '#666', marginVertical: 8, fontSize: 14, fontStyle: 'italic' },
-  trackerFooter: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingTop: 10, marginTop: 5 },
-  actionText: { color: Colors.primary, fontWeight: '700' },
-
-  section: { padding: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-  grid: { flexDirection: 'row', justifyContent: 'space-between' },
-  catItem: { alignItems: 'center', gap: 8 },
-  iconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#e3f2fd', justifyContent: 'center', alignItems: 'center' },
-  catLabel: { fontSize: 12, fontWeight: '500' },
-})

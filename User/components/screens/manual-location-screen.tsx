@@ -10,11 +10,11 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import  {Colors} from "@/constants/Colors"
 import { Button } from "@/components/ui/Button"
-import { Input } from "@/components/ui/Input"
 import { useAppStore } from "@/lib/store"
 
 interface ManualLocationScreenProps {
@@ -28,6 +28,7 @@ export default function ManualLocationScreen({ onBack, onLocationSaved }: Manual
   const [fullAddress, setFullAddress] = useState("")
   const [landmark, setLandmark] = useState("")
   const { setCurrentLocation, addAddress } = useAppStore()
+  const darkMode = useAppStore((state) => state.darkMode)
 
   const suggestedLocations = [
     "HSR Layout, Bangalore",
@@ -56,30 +57,33 @@ export default function ManualLocationScreen({ onBack, onLocationSaved }: Manual
     }
   }
 
+  const styles = getStyles(darkMode)
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.gray[900]} />
+            <Ionicons name="arrow-back" size={24} color={darkMode ? Colors.textDark : Colors.gray[900]} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Enter Address</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Search Input */}
-          <View style={styles.searchContainer}>
-            <View style={styles.searchInputWrapper}>
-              <Ionicons name="search" size={20} color={Colors.gray[400]} />
-              <Input
-                placeholder="Search for area, street name..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                containerStyle={styles.searchInput}
-              />
+          {/* Search Input - Single unified box */}
+          <View style={styles.searchBarContainer}>
+            <View style={styles.searchIcon}>
+              <Ionicons name="search" size={20} color={darkMode ? Colors.gray[400] : Colors.gray[400]} />
             </View>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search for area, street name..."
+              placeholderTextColor={darkMode ? Colors.gray[500] : Colors.gray[400]}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
           </View>
 
           {/* Suggested Locations */}
@@ -91,7 +95,9 @@ export default function ManualLocationScreen({ onBack, onLocationSaved }: Manual
                   style={styles.suggestionItem}
                   onPress={() => handleLocationSelect(location)}
                 >
-                  <Ionicons name="location-outline" size={20} color={Colors.gray[400]} />
+                  <View style={styles.locationIcon}>
+                    <Ionicons name="location-outline" size={20} color={Colors.primary} />
+                  </View>
                   <Text style={styles.suggestionText}>{location}</Text>
                 </TouchableOpacity>
               ))}
@@ -111,11 +117,13 @@ export default function ManualLocationScreen({ onBack, onLocationSaved }: Manual
                   style={[styles.typeButton, addressType === type && styles.typeButtonActive]}
                   onPress={() => setAddressType(type)}
                 >
-                  <Ionicons
-                    name={type === "home" ? "home" : type === "work" ? "briefcase" : "location"}
-                    size={18}
-                    color={addressType === type ? Colors.white : Colors.gray[600]}
-                  />
+                  <View style={[styles.typeIcon, addressType === type && styles.typeIconActive]}>
+                    <Ionicons
+                      name={type === "home" ? "home" : type === "work" ? "briefcase" : "location"}
+                      size={16}
+                      color={addressType === type ? Colors.white : (darkMode ? Colors.gray[400] : Colors.gray[600])}
+                    />
+                  </View>
                   <Text style={[styles.typeText, addressType === type && styles.typeTextActive]}>
                     {type.charAt(0).toUpperCase() + type.slice(1)}
                   </Text>
@@ -123,40 +131,53 @@ export default function ManualLocationScreen({ onBack, onLocationSaved }: Manual
               ))}
             </View>
 
-            {/* Full Address */}
-            <Input
-              label="Full Address"
-              placeholder="House/Flat No., Building Name, Street"
-              value={fullAddress}
-              onChangeText={setFullAddress}
-              multiline
-              numberOfLines={3}
-              style={styles.addressInput}
-            />
+            {/* Full Address Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Full Address</Text>
+              <TextInput
+                style={styles.textArea}
+                placeholder="House/Flat No., Building Name, Street"
+                placeholderTextColor={darkMode ? Colors.gray[500] : Colors.gray[400]}
+                value={fullAddress}
+                onChangeText={setFullAddress}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
 
-            {/* Landmark */}
-            <Input
-              label="Landmark (Optional)"
-              placeholder="Nearby landmark for easy navigation"
-              value={landmark}
-              onChangeText={setLandmark}
-            />
+            {/* Landmark Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Landmark (Optional)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Nearby landmark for easy navigation"
+                placeholderTextColor={darkMode ? Colors.gray[500] : Colors.gray[400]}
+                value={landmark}
+                onChangeText={setLandmark}
+              />
+            </View>
           </View>
         </ScrollView>
 
         {/* Save Button */}
         <View style={styles.buttonContainer}>
-          <Button title="Save & Continue" onPress={handleSave} fullWidth disabled={!fullAddress} size="lg" />
+          <TouchableOpacity
+            style={[styles.saveButton, !fullAddress && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={!fullAddress}
+          >
+            <Text style={styles.saveButtonText}>Save & Continue</Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const getStyles = (darkMode: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: darkMode ? Colors.backgroundDark : Colors.background,
   },
   flex: {
     flex: 1,
@@ -168,45 +189,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.gray[100],
+    borderBottomColor: darkMode ? Colors.borderDark : Colors.gray[100],
+    backgroundColor: darkMode ? Colors.backgroundDark : Colors.background,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.gray[50],
+    backgroundColor: darkMode ? Colors.surfaceDark : Colors.gray[50],
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: Colors.gray[900],
+    fontWeight: "700",
+    color: darkMode ? Colors.textDark : Colors.gray[900],
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  searchContainer: {
-    paddingVertical: 16,
-  },
-  searchInputWrapper: {
+  searchBarContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.gray[50],
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    backgroundColor: darkMode ? Colors.surfaceDark : Colors.gray[50],
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: darkMode ? Colors.borderDark : Colors.gray[200],
+  },
+  searchIcon: {
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    marginBottom: 0,
+    fontSize: 16,
+    color: darkMode ? Colors.textDark : Colors.gray[900],
   },
   suggestions: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
+    backgroundColor: darkMode ? Colors.surfaceDark : Colors.white,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.gray[200],
-    marginBottom: 16,
+    borderColor: darkMode ? Colors.borderDark : Colors.gray[200],
+    marginTop: 8,
+    overflow: 'hidden',
   },
   suggestionItem: {
     flexDirection: "row",
@@ -215,59 +243,127 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.gray[100],
+    borderBottomColor: darkMode ? Colors.borderDark : Colors.gray[100],
+  },
+  locationIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: darkMode ? '#1E3A5F' : '#E3F2FD',
+    alignItems: "center",
+    justifyContent: "center",
   },
   suggestionText: {
     fontSize: 15,
-    color: Colors.gray[700],
+    color: darkMode ? Colors.textDark : Colors.gray[700],
+    flex: 1,
   },
   formSection: {
-    paddingTop: 8,
+    paddingTop: 24,
+    paddingBottom: 20,
   },
   formTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: Colors.gray[900],
+    fontWeight: "700",
+    color: darkMode ? Colors.textDark : Colors.gray[900],
     marginBottom: 20,
   },
   label: {
     fontSize: 14,
-    fontWeight: "500",
-    color: Colors.gray[700],
-    marginBottom: 8,
+    fontWeight: "600",
+    color: darkMode ? Colors.textSecondaryDark : Colors.gray[700],
+    marginBottom: 12,
   },
   typeContainer: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   typeButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingVertical: 10,
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: Colors.gray[100],
+    borderRadius: 16,
+    backgroundColor: darkMode ? Colors.surfaceDark : Colors.gray[100],
+    borderWidth: 1,
+    borderColor: darkMode ? Colors.borderDark : 'transparent',
   },
   typeButtonActive: {
     backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  typeIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: darkMode ? Colors.gray[700] : Colors.gray[200],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  typeIconActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   typeText: {
     fontSize: 14,
-    fontWeight: "500",
-    color: Colors.gray[600],
+    fontWeight: "600",
+    color: darkMode ? Colors.textSecondaryDark : Colors.gray[600],
   },
   typeTextActive: {
     color: Colors.white,
   },
-  addressInput: {
-    height: 80,
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: darkMode ? Colors.textSecondaryDark : Colors.gray[700],
+    marginBottom: 8,
+  },
+  textInput: {
+    backgroundColor: darkMode ? Colors.surfaceDark : Colors.gray[50],
+    borderWidth: 1,
+    borderColor: darkMode ? Colors.borderDark : Colors.gray[200],
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: darkMode ? Colors.textDark : Colors.gray[900],
+  },
+  textArea: {
+    backgroundColor: darkMode ? Colors.surfaceDark : Colors.gray[50],
+    borderWidth: 1,
+    borderColor: darkMode ? Colors.borderDark : Colors.gray[200],
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: darkMode ? Colors.textDark : Colors.gray[900],
+    height: 100,
     textAlignVertical: "top",
   },
   buttonContainer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: Colors.gray[100],
+    borderTopColor: darkMode ? Colors.borderDark : Colors.gray[100],
+    backgroundColor: darkMode ? Colors.backgroundDark : Colors.background,
+  },
+  saveButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: "700",
   },
 })

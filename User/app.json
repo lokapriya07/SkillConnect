@@ -1,5 +1,6 @@
 {
   "expo": {
+    
     "name": "myapp",
     "slug": "myapp",
     "version": "1.0.0",
@@ -11,6 +12,7 @@
     "ios": {
       "supportsTablet": true
     },
+    
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -46,6 +48,18 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2ce83aff-bd3f-4df5-839d-7c9a08d3181c"
+      }
+    },
+    "updates": {
+  "enabled": true,
+  "checkAutomatically": "ON_LOAD",
+  "fallbackToCacheTimeout": 0
+}
+
   }
 }

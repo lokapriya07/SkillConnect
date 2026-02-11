@@ -34,18 +34,16 @@ export interface Address {
 
 export interface Booking {
   id: string
+  userId?: string  // Optional - for backwards compatibility
   items: CartItem[]
   total: number
   status: "confirmed" | "in-progress" | "completed" | "cancelled"
   date: string
   time: string
   address: string
-  
-  professional?: {
-    name: string
-    rating: number
-    image: string
-  }
+  paymentMethod: string
+  serviceCategory?: string
+  assignedWorker?: AssignedWorker
 }
 
 
@@ -55,15 +53,31 @@ export interface WorkerProfile {
   rating: number;
   experience: number;
   skills: string[];
-  profilePic?: string; // Changed from 'image' to match your backend .select()
-  expertise?: string;  // Added to match your backend .select()
+  profilePic?: string;
+  expertise?: string;
   location?: {
     type?: string;
-    coordinates?: [number, number]; // [longitude, latitude]
+    coordinates?: [number, number];
     latitude?: number;
     longitude?: number;
   };
 }
+
+// Assigned worker info for bookings
+export interface AssignedWorker {
+  _id: string;
+  userId: string;
+  name: string;
+  title?: string;
+  profilePic?: string;
+  rating: number;
+  experience: number;
+  skills: string[];
+  city?: string;
+  hourlyRate?: number;
+  matchScore?: number;
+}
+
 // Updated Job Interface with unique ID
 export interface ActiveJob {
   id: string;
@@ -93,15 +107,19 @@ interface AppState {
   cart: CartItem[]
   bookings: Booking[]
   activeJobs: ActiveJob[]; // Changed to Array
+  darkMode: boolean; // Dark mode preference
 
   // Actions
   fetchActiveJobs: () => Promise<void>;
-  addActiveJob: (job: ActiveJob) => void; // Changed to add to array
+  addActiveJob: (job: ActiveJob) => void;
+  assignWorker: (bookingId: string, worker: AssignedWorker) => void;
   removeJob: (id: string) => void;
   clearJobs: () => void;
   setAuthenticated: (auth: boolean) => void
   setUser: (user: AppState["user"]) => void
   setCurrentLocation: (location: AppState["currentLocation"]) => void
+  setDarkMode: (value: boolean) => void
+  toggleDarkMode: () => void
   addToCart: (service: Service, quantity?: number) => void
   removeFromCart: (serviceId: string) => void
   updateCartItemQuantity: (serviceId: string, quantity: number) => void
@@ -127,26 +145,51 @@ export const useAppStore = create<AppState>()(
       cart: [],
       bookings: [],
       activeJobs: [], // Initial state is empty array
+      darkMode: false, // Dark mode preference
+
+      // Dark mode actions
+      setDarkMode: (value) => set({ darkMode: value }),
+      toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
 
       // Fixed: Appends new job to the list
       addActiveJob: (job) => set((state) => ({
         activeJobs: [job, ...state.activeJobs]
       })),
+
+      // Assign worker to a booking
+      assignWorker: (bookingId, worker) => set((state) => ({
+        bookings: state.bookings.map((booking) =>
+          booking.id === bookingId 
+            ? { ...booking, assignedWorker: worker }
+            : booking
+        )
+      })),
+
       // Inside your useAppStore fetchActiveJobs function:
       fetchActiveJobs: async () => {
         const user = get().user;
-        const userId = user?._id || user?.id; // Handle both formats
+        // Backend returns 'id' field, not '_id', so we need to handle both
+        const userId = user?._id || user?.id;
 
-        if (!userId) return;
+        if (!userId) {
+          console.log("fetchActiveJobs: No userId available, skipping...");
+          return;
+        }
+
+        console.log("fetchActiveJobs: Fetching jobs for userId:", userId);
 
         try {
           // Note: use the new /user/:userId endpoint
-          const response = await fetch(`http://192.168.0.2:5000/api/jobs/user/${userId}`);
+          const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.9:5000";
+          const response = await fetch(`${API_URL}/api/jobs/user/${userId}`);
           const data = await response.json();
+
+          console.log("fetchActiveJobs: API response", data);
 
           if (data.success) {
             // Map the backend 'jobs' to your state 'activeJobs'
-            set({ activeJobs: data.jobs });
+            console.log("fetchActiveJobs: Found", data.jobs?.length || 0, "jobs");
+            set({ activeJobs: data.jobs || [] });
           }
         } catch (error) {
           console.error("Sync error:", error);
@@ -239,6 +282,7 @@ export const useAppStore = create<AppState>()(
         isAuthenticated: false,
         user: null,
         cart: [],
+        activeJobs: [],
         currentLocation: null
       }),
     }),

@@ -8,6 +8,7 @@ const jobRequestSchema = new mongoose.Schema(
       required: true
     },
 
+    serviceName: String,
     description: String,
     budget: Number,
     skillsRequired: [String],
@@ -22,8 +23,17 @@ const jobRequestSchema = new mongoose.Schema(
       createdAt: { type: Date, default: Date.now }
     }],
 
+    // Assigned worker for direct booking
+    assignedWorker: {
+      workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Work' },
+      workerName: String,
+      workerProfilePic: String,
+      assignedAt: { type: Date, default: Date.now }
+    },
+
     status: {
       type: String,
+      enum: ['finding_workers', 'bidding', 'assigned', 'scheduled', 'in_progress', 'completed', 'cancelled'],
       default: 'finding_workers'
     },
 
@@ -37,6 +47,48 @@ const jobRequestSchema = new mongoose.Schema(
         type: [Number],
         required: true
       }
+    },
+
+    // Service address
+    address: {
+      type: String,
+      default: ''
+    },
+    city: {
+      type: String,
+      default: ''
+    },
+    state: {
+      type: String,
+      default: ''
+    },
+    fullAddress: {
+      type: String,
+      default: ''
+    },
+
+    // Scheduling info
+    scheduledDate: {
+      type: String,
+      default: ''
+    },
+    scheduledTime: {
+      type: String,
+      default: ''
+    },
+
+    // Payment info
+    paymentMethod: {
+      type: String,
+      default: ''
+    },
+    totalAmount: {
+      type: Number,
+      default: 0
+    },
+    paidAmount: {
+      type: Number,
+      default: 0
     }
   },
   { timestamps: true }
