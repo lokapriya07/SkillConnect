@@ -1,10 +1,11 @@
 
-
 import { Colors } from "@/constants/Colors"
 import { categories, getFeaturedServices, getPopularServices } from "@/lib/services-data"
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
+
+
 import React, { useEffect, useRef, useState } from "react"
 import {
   Dimensions,
@@ -35,35 +36,39 @@ const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   salon: "cut",
 }
 
-// CAROUSEL BANNERS (Added 'categoryId' for real-world linking)
 const BANNERS = [
   {
     id: '1',
     categoryId: 'cleaning',
+    serviceId: 'salon-2', // Points to Home Cleaning
     image: 'https://cdn.shopify.com/s/files/1/0026/4549/1812/files/shutterstock_1236164359_1024x1024.jpg?v=1614305641',
     title: 'Republic Day Sale',
     subtitle: 'Flat 50% Off on all Spa Services',
     offer: 'UPTO 50% OFF',
     searchHint: 'Home Cleaning',
-    color: '#FF9933' // Saffron for Republic Day
+    color: '#FF9933' 
   },
   {
     id: '2',
+    categoryId: 'cleaning',
+    serviceId: 'clean-3', // <--- THIS points to Kitchen Cleaning
     image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800',
     title: 'Kitchen Cleaning',
     subtitle: 'Expert deep cleaning for your home',
     offer: 'Starting @ ₹299',
-    searchHint: 'Spa for Women',
-    color: '#000080' // Navy Blue
+    searchHint: 'Kitchen Cleaning',
+    color: '#000080' 
   },
   {
     id: '3',
+    categoryId: 'salon',
+    serviceId: 'salon-men-1', // Points to Salon/Men
     image: 'https://images.unsplash.com/photo-1521223344201-d169129f7b7d?w=800',
     title: 'Salon for Men',
     subtitle: 'Top rated stylists at your doorstep',
     offer: '20% OFF FIRST VISIT',
-    searchHint: 'Bathroom Cleaning',
-    color: '#128C7E' // Professional Teal
+    searchHint: 'Salon for Men',
+    color: '#128C7E' 
   },
 ];
 
@@ -88,20 +93,18 @@ export default function HomeScreen() {
   const featuredServices = getFeaturedServices()
   const popularServices = getPopularServices()
   const cartCount = getCartCount()
-  useEffect(() => {
-    if (user) {
-      fetchActiveJobs();
-    }
-  }, [user]);
-  // Auto-slide effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
+ useEffect(() => {
+  const interval = setInterval(() => {
+    setActiveIndex(prev => {
+      const nextIndex = prev === BANNERS.length - 1 ? 0 : prev + 1;
       flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-      setActiveIndex(nextIndex);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, [activeIndex]);
+      return nextIndex;
+    });
+  }, 3500);
+
+  return () => clearInterval(interval);
+}, []);
+
 
   const handleScroll = (event: any) => {
     const scrollPos = event.nativeEvent.contentOffset.x;
@@ -255,9 +258,23 @@ export default function HomeScreen() {
                       {/* Use the formattedSubtitle here */}
                       <Text style={styles.bannerSubtitle}>{formattedSubtitle}</Text>
 
-                      <TouchableOpacity style={styles.bookNowBtn}>
+                      {/* <TouchableOpacity style={styles.bookNowBtn}>
                         <Text style={styles.bookNowText}>BOOK NOW</Text>
-                      </TouchableOpacity>
+                      </TouchableOpacity> */}
+                      <TouchableOpacity 
+  style={styles.bookNowBtn} 
+  onPress={() => {
+    // If a specific serviceId exists, go to that service page
+    // Otherwise, fall back to the category page
+    if (item.serviceId) {
+      router.push(`/service/${item.serviceId}`);
+    } else {
+      router.push(`/category/${item.categoryId}` as any);
+    }
+  }}
+>
+  <Text style={styles.bookNowText}>BOOK NOW</Text>
+</TouchableOpacity>
                     </View>
 
                     <View style={styles.imageBgCircle} />
@@ -288,10 +305,15 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Offers</Text>
-            <TouchableOpacity style={styles.seeAllBtn}>
+            
+            <TouchableOpacity
+              style={styles.seeAllBtn}
+              onPress={() => router.push("/featured-services")}
+            >
               <Text style={styles.seeAllText}>See all</Text>
               <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
             </TouchableOpacity>
+
           </View>
           <ScrollView
             horizontal
@@ -341,10 +363,14 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Popular Services</Text>
-            <TouchableOpacity style={styles.seeAllBtn}>
+            <TouchableOpacity
+              style={styles.seeAllBtn}
+              onPress={() => router.push("/popular-services")}
+            >
               <Text style={styles.seeAllText}>See all</Text>
               <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
             </TouchableOpacity>
+            
           </View>
           <View style={styles.popularList}>
             {popularServices.slice(0, 4).map((service) => (
