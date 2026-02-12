@@ -601,30 +601,96 @@ router.get('/debug/workers', async (req, res) => {
     }
 });
 
-// GET ASSIGNED JOBS FOR WORKER (with user details)
+// // GET ASSIGNED JOBS FOR WORKER (with user details)
+// router.get('/worker/:workerId/assigned-jobs', async (req, res) => {
+//     try {
+//         const { workerId } = req.params;
+        
+//         // Find jobs assigned to this worker and populate user details
+//         const assignedJobs = await JobRequest.find({
+//             'assignedWorker.workerId': workerId,
+//             status: { $in: ['assigned', 'scheduled', 'in_progress'] }
+//         })
+//         .populate('userId', 'name phone email address fullAddress city state')
+//         .sort({ createdAt: -1 });
+
+//         // Transform jobs to include user details
+//         const jobsWithUserDetails = assignedJobs.map(job => ({
+//             ...job.toObject(),
+//             userName: job.userId?.name || 'Customer',
+//             userPhone: job.userId?.phone || '+91 00000 00000',
+//             userEmail: job.userId?.email || '',
+//             // Use job's address fields first, fallback to user's address
+//             address: job.fullAddress || job.address || (job.userId?.fullAddress || job.userId?.address || '') || 'Address not available',
+//             city: job.city || job.userId?.city || '',
+//             state: job.state || job.userId?.state || '',
+//             // Ensure scheduledDate and scheduledTime are always returned
+//             scheduledDate: job.scheduledDate || '',
+//             scheduledTime: job.scheduledTime || ''
+//         }));
+
+//         res.status(200).json({
+//             success: true,
+//             count: jobsWithUserDetails.length,
+//             jobs: jobsWithUserDetails
+//         });
+//     } catch (error) {
+//         console.error('Fetch Assigned Jobs Error:', error);
+//         res.status(500).json({ error: "Failed to fetch assigned jobs" });
+//     }
+// });
+
+// // ACCEPT JOB - Update status to in_progress
+// router.put('/worker/:jobId/accept', async (req, res) => {
+//     try {
+//         const { jobId } = req.params;
+        
+//         const job = await JobRequest.findById(jobId);
+        
+//         if (!job) {
+//             return res.status(404).json({ error: "Job not found" });
+//         }
+        
+//         // Update status to in_progress
+//         job.status = 'in_progress';
+//         await job.save();
+
+//         res.status(200).json({
+//             success: true,
+//             message: "Job accepted successfully",
+//             job: {
+//                 ...job.toObject(),
+//                 userName: job.userId?.name || 'Customer',
+//                 userPhone: job.userId?.phone || '+91 00000 00000',
+//                 address: job.fullAddress || job.address || 'Address not available'
+//             }
+//         });
+//     } catch (error) {
+//         console.error('Accept Job Error:', error);
+//         res.status(500).json({ error: "Failed to accept job" });
+//     }
+// });
+// 1. GET ASSIGNED JOBS FOR WORKER (Updated to include 'completed')
 router.get('/worker/:workerId/assigned-jobs', async (req, res) => {
     try {
         const { workerId } = req.params;
         
-        // Find jobs assigned to this worker and populate user details
+        // Added 'completed' to the $in array to ensure finished jobs are fetched
         const assignedJobs = await JobRequest.find({
             'assignedWorker.workerId': workerId,
-            status: { $in: ['assigned', 'scheduled', 'in_progress'] }
+            status: { $in: ['assigned', 'scheduled', 'in_progress', 'completed'] }
         })
         .populate('userId', 'name phone email address fullAddress city state')
-        .sort({ createdAt: -1 });
+        .sort({ updatedAt: -1 }); // Recently updated jobs (like just completed) show first
 
-        // Transform jobs to include user details
         const jobsWithUserDetails = assignedJobs.map(job => ({
             ...job.toObject(),
             userName: job.userId?.name || 'Customer',
             userPhone: job.userId?.phone || '+91 00000 00000',
             userEmail: job.userId?.email || '',
-            // Use job's address fields first, fallback to user's address
             address: job.fullAddress || job.address || (job.userId?.fullAddress || job.userId?.address || '') || 'Address not available',
             city: job.city || job.userId?.city || '',
             state: job.state || job.userId?.state || '',
-            // Ensure scheduledDate and scheduledTime are always returned
             scheduledDate: job.scheduledDate || '',
             scheduledTime: job.scheduledTime || ''
         }));
@@ -640,34 +706,44 @@ router.get('/worker/:workerId/assigned-jobs', async (req, res) => {
     }
 });
 
-// ACCEPT JOB - Update status to in_progress
+// 2. ACCEPT JOB (Remains same)
 router.put('/worker/:jobId/accept', async (req, res) => {
     try {
         const { jobId } = req.params;
-        
-        const job = await JobRequest.findById(jobId);
-        
+        const job = await JobRequest.findByIdAndUpdate(
+            jobId,
+            { status: 'in_progress' },
+            { new: true }
+        );
+        if (!job) return res.status(404).json({ success: false, error: "Job not found" });
+        res.status(200).json({ success: true, message: "Job accepted successfully", job });
+    } catch (error) {
+        res.status(500).json({ success: false, error: "Failed to accept job" });
+    }
+});
+
+// 3. NEW: COMPLETE JOB - Update status to completed
+router.put('/worker/:jobId/complete', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const job = await JobRequest.findByIdAndUpdate(
+            jobId,
+            { status: 'completed' },
+            { new: true }
+        );
+
         if (!job) {
-            return res.status(404).json({ error: "Job not found" });
+            return res.status(404).json({ success: false, error: "Job not found" });
         }
-        
-        // Update status to in_progress
-        job.status = 'in_progress';
-        await job.save();
 
         res.status(200).json({
             success: true,
-            message: "Job accepted successfully",
-            job: {
-                ...job.toObject(),
-                userName: job.userId?.name || 'Customer',
-                userPhone: job.userId?.phone || '+91 00000 00000',
-                address: job.fullAddress || job.address || 'Address not available'
-            }
+            message: "Job marked as completed successfully",
+            job
         });
     } catch (error) {
-        console.error('Accept Job Error:', error);
-        res.status(500).json({ error: "Failed to accept job" });
+        console.error('Complete Job Error:', error);
+        res.status(500).json({ success: false, error: "Failed to complete job" });
     }
 });
 
@@ -717,6 +793,16 @@ router.post('/toggle-availability', async (req, res) => {
     } catch (error) {
         console.error('❌ Toggle Route Crash:', error); // This will show you the real error
         res.status(500).json({ error: "Server error", details: error.message });
+    }
+});
+router.get('/get-job/:jobId', async (req, res) => {
+    try {
+        const job = await JobRequest.findById(req.params.jobId);
+        if (!job) return res.status(404).json({ success: false });
+        // Sending a wrapper ensures the frontend "if" statement works
+        res.status(200).json({ success: true, job: job });
+    } catch (error) {
+        res.status(500).json({ success: false });
     }
 });
 

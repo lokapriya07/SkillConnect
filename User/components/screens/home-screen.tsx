@@ -111,16 +111,33 @@ export default function HomeScreen() {
     }
   }, [user]);
   // Auto-slide effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
-      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-      return nextIndex;
+//   useEffect(() => {
+//     const interval = setInterval(() => {
+//       let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
+//       flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+//       return nextIndex;
+//     });
+//   }, 3500);
+
+//   return () => clearInterval(interval);
+// }, []);
+useEffect(() => {
+  const interval = setInterval(() => {
+    let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
+    
+    flatListRef.current?.scrollToIndex({ 
+      index: nextIndex, 
+      animated: true 
     });
+
+    // If you need to update the activeIndex state as well:
+    // setActiveIndex(nextIndex); 
+    
   }, 3500);
 
+  // The cleanup function must be INSIDE the useEffect
   return () => clearInterval(interval);
-}, []);
+}, [activeIndex]); // Added activeIndex here so the logic knows the current position
 
 
   const handleScroll = (event: any) => {
