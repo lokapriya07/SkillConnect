@@ -9,7 +9,7 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
-  TouchableOpacity,
+  Pressable,
   View,
 } from "react-native";
 
@@ -66,11 +66,18 @@ export default function PhoneAuthScreen({ onSubmit, onSkip }: any) {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>ServiceHub</Text>
-          {onSkip && (
-            <TouchableOpacity onPress={onSkip}>
-              <Text style={styles.skipText}>Skip</Text>
-            </TouchableOpacity>
-          )}
+         {onSkip && (
+  <Pressable
+    onPress={() => {
+      console.log("SKIP BUTTON CLICKED");
+      onSkip();
+    }}
+    hitSlop={10}
+  >
+    <Text style={styles.skipText}>Skip</Text>
+  </Pressable>
+)}
+
         </View>
 
         <View style={styles.illustrationContainer}>

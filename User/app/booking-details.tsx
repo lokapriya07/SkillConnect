@@ -1,258 +1,231 @@
 "use client"
 
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
-  useColorScheme,
-  TouchableOpacity,
-  Alert,
-} from "react-native"
-import { useLocalSearchParams } from "expo-router"
+import React, { useEffect, useState } from "react"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, StatusBar, SafeAreaView } from "react-native"
+import { useLocalSearchParams, useRouter } from "expo-router"
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
-import { LinearGradient } from "expo-linear-gradient"
-import * as Clipboard from "expo-clipboard"
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps"
+import { BlurView } from 'expo-blur'
+import { Colors } from "@/constants/Colors"
 
-const TRACKING_STEPS = [
-  { key: "pending", label: "Requested", icon: "receipt-outline" },
-  { key: "confirmed", label: "Assigned", icon: "person-outline" },
-  { key: "on_the_way", label: "On the way", icon: "car-outline" },
-  { key: "in_progress", label: "In progress", icon: "construct-outline" },
-  { key: "completed", label: "Completed", icon: "checkmark-done-outline" },
+
+const { width, height } = Dimensions.get("window")
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+const STATUS_STEPS = [
+  { key: 'assigned', label: 'Order Accepted', icon: 'shield-checkmark-outline' },
+  { key: 'scheduled', label: 'On the Way', icon: 'bicycle-outline' },
+  { key: 'in_progress', label: 'Service in Progress', icon: 'hammer-outline' },
+  { key: 'completed', label: 'Job Finished', icon: 'checkmark-circle-outline' },
 ]
 
-const STATUS_ORDER: Record<string, number> = {
-  pending: 0,
-  confirmed: 1,
-  on_the_way: 2,
-  in_progress: 3,
-  completed: 4,
-}
-
 export default function BookingDetailsScreen() {
-  const scheme = useColorScheme()
-  const isDark = scheme === "dark"
-
+  const router = useRouter()
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>()
-  const booking = useAppStore(s => s.bookings.find(b => b.id === bookingId))
+  const darkMode = useAppStore(state => state.darkMode)
+  const storeBooking = useAppStore(s => s.bookings.find(b => b.id === bookingId))
+  
+  const [liveJob, setLiveJob] = useState<any>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
 
-  if (!booking) {
-    return <Text style={{ padding: 20 }}>Booking not found</Text>
-  }
+  useEffect(() => {
+    let interval: ReturnType<typeof setTimeout>
 
-  const professional = booking.professional
-  const currentIndex = STATUS_ORDER[booking.status]
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/worker/job/${bookingId}`);
+        const data = await res.json();
+        if (data.success) {
+          setLiveJob(data.job);
+          setIsSyncing(true);
+        }
+      } catch (e) { setIsSyncing(false); }
+    };
+    fetchStatus();
+    interval = setInterval(fetchStatus, 5000);
+    return () => clearInterval(interval);
+  }, [bookingId]);
 
-  const theme = {
-    bg: isDark ? ["#020617", "#020617"] : ["#E0F2FE", "#F0FDFA"],
-    text: isDark ? "#E5E7EB" : "#1e3a8a",
-    subText: isDark ? "#9CA3AF" : "#64748b",
-    card: isDark ? "#0F172A" : "#FFFFFF",
-    accent: "#f97316",
-    muted: isDark ? "#334155" : "#E2E8F0",
-  }
+  const displayData = liveJob || storeBooking || {};
+  const currentStatus = displayData?.status || 'assigned';
+  const currentStepIndex = STATUS_STEPS.findIndex(s => s.key === currentStatus);
+  const workerName = displayData?.assignedWorker?.name || "Professional";
+  const initials = workerName.split(' ').map((n: string) => n[0]).join('').toUpperCase();
 
-  const copyBookingId = async () => {
-    await Clipboard.setStringAsync(booking.id)
-    Alert.alert("Copied", "Booking ID copied to clipboard")
-  }
-
-  const estimatedCompletion = "6:30 PM" // can be dynamic later
-
-  const actionLabel =
-    booking.status === "pending"
-      ? "Cancel Booking"
-      : booking.status === "completed"
-      ? "Rate & Review"
-      : "Need Help?"
+  const styles = getStyles(darkMode);
 
   return (
-    <LinearGradient colors={theme.bg} style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-
-        {/* TITLE */}
-        <Text style={[styles.title, { color: theme.text }]}>
-          Booking Details
-        </Text>
-
-        {/* BOOKING ID */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <View style={styles.rowBetween}>
-            <Text style={{ color: theme.subText }}>
-              Booking ID: <Text style={{ fontWeight: "700" }}>{booking.id}</Text>
-            </Text>
-            <TouchableOpacity onPress={copyBookingId}>
-              <Ionicons name="copy-outline" size={18} color={theme.accent} />
-            </TouchableOpacity>
+    <View style={styles.container}>
+      <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} />
+      
+      {/* 1. SEPARATE HEADER (Fixed Overlap) */}
+      <SafeAreaView style={styles.headerSafeArea}>
+        <View style={styles.navHeader}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.navBtn}>
+            <Ionicons name="arrow-back" size={24} color={darkMode ? "#FFF" : "#1A1C1E"} />
+          </TouchableOpacity>
+          <View style={styles.titleContainer}>
+            <Text style={styles.navTitle}>Tracking Service</Text>
+            <View style={styles.liveTag}>
+              <View style={[styles.pulseDot, { backgroundColor: isSyncing ? '#10B981' : '#94A3B8' }]} />
+              <Text style={styles.liveLabel}>{isSyncing ? 'LIVE' : 'OFFLINE'}</Text>
+            </View>
           </View>
+          <TouchableOpacity style={styles.navBtn}>
+            <Ionicons name="ellipsis-vertical" size={20} color={darkMode ? "#FFF" : "#1A1C1E"} />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
+        {/* 2. MAP VIEW (Now below the header) */}
+        <View style={styles.mapWrapper}>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={{
+              latitude: 12.9716,
+              longitude: 77.5946,
+              latitudeDelta: 0.005,
+              longitudeDelta: 0.005,
+            }}
+          >
+            <Marker coordinate={{ latitude: 12.9716, longitude: 77.5946 }}>
+              <View style={styles.proMarker}>
+                <Ionicons name="bicycle" size={18} color="white" />
+              </View>
+            </Marker>
+          </MapView>
         </View>
 
-        {/* TRACKER */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <View style={styles.trackerRow}>
-            {TRACKING_STEPS.map((step, index) => {
-              const active = index <= currentIndex
-              const last = index === TRACKING_STEPS.length - 1
-
+        {/* 3. CONTENT SECTION (Floating up slightly over map) */}
+        <View style={styles.contentContainer}>
+          
+          {/* STEPPER */}
+          <View style={styles.card}>
+            <Text style={styles.cardHeader}>ACTIVITY TIMELINE</Text>
+            {STATUS_STEPS.map((step, index) => {
+              const isActive = index <= currentStepIndex;
+              const isCurrent = index === currentStepIndex;
               return (
-                <View key={step.key} style={styles.stepWrapper}>
-                  <View
-                    style={[
-                      styles.stepIcon,
-                      active && { backgroundColor: theme.accent },
-                    ]}
-                  >
-                    <Ionicons
-                      name={step.icon as any}
-                      size={14}
-                      color={active ? "#FFF" : theme.subText}
-                    />
+                <View key={step.key} style={styles.stepRow}>
+                  <View style={styles.indicatorCol}>
+                    <View style={[styles.stepCircle, isActive && styles.circleActive]}>
+                       <Ionicons name={step.icon as any} size={14} color={isActive ? "white" : "#94A3B8"} />
+                    </View>
+                    {index !== 3 && <View style={[styles.stepLine, isActive && styles.lineActive]} />}
                   </View>
-
-                  {!last && (
-                    <View
-                      style={[
-                        styles.stepLine,
-                        active && { backgroundColor: theme.accent },
-                      ]}
-                    />
-                  )}
-
-                  <Text style={{ fontSize: 10, color: theme.subText }}>
-                    {step.label}
-                  </Text>
+                  <View style={styles.stepTextCol}>
+                    <Text style={[styles.stepLabel, isActive && styles.labelActive]}>{step.label}</Text>
+                    {isCurrent && <Text style={styles.currentDesc}>In progress • Updating now</Text>}
+                  </View>
                 </View>
               )
             })}
           </View>
 
-          <Text style={{ marginTop: 12, color: theme.subText }}>
-            Estimated completion by <Text style={{ fontWeight: "700" }}>{estimatedCompletion}</Text>
-          </Text>
-        </View>
-
-        {/* SERVICES */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Services</Text>
-          {booking.items.map((item, index) => (
-            <Text key={index} style={{ color: theme.subText, marginTop: 6 }}>
-              • {item.service.name}
-            </Text>
-          ))}
-        </View>
-
-        {/* ADDRESS */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Service Address</Text>
-          <Text style={{ color: theme.subText, marginTop: 6 }}>
-            {booking.address || "No address provided"}
-          </Text>
-        </View>
-
-        {/* PROFESSIONAL */}
-        {professional && (
-          <View style={[styles.card, styles.workerRow, { backgroundColor: theme.card }]}>
-            <Image source={{ uri: professional.image }} style={styles.avatar} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.text, fontWeight: "700" }}>
-                {professional.name}
-              </Text>
-              <Text style={{ color: theme.subText }}>
-                ⭐ {professional.rating}
-              </Text>
-
-              <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.iconBtn}>
-                  <Ionicons name="call-outline" size={18} color={theme.accent} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.iconBtn}>
-                  <Ionicons name="chatbubble-outline" size={18} color={theme.accent} />
-                </TouchableOpacity>
+          {/* WORKER BADGE */}
+          {displayData?.assignedWorker && (
+            <View style={styles.workerBadgeCard}>
+              <View style={styles.initialsCircle}>
+                 <Text style={styles.initialsText}>{initials}</Text>
+                 <View style={styles.verifiedIcon}>
+                    <Ionicons name="checkmark" size={10} color="white" />
+                 </View>
               </View>
+              <View style={styles.workerInfo}>
+                <Text style={styles.workerNameText}>{workerName}</Text>
+                <View style={styles.ratingRow}>
+                   <Ionicons name="star" size={12} color="#F59E0B" />
+                   <Text style={styles.ratingText}> 4.9 • Verified Partner</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.callFab}>
+                <Ionicons name="call" size={22} color="white" />
+              </TouchableOpacity>
             </View>
+          )}
+
+          {/* PAYMENT SUMMARY */}
+          <View style={styles.card}>
+              <View style={styles.paymentRow}>
+                 <Text style={styles.totalLabel}>Grand Total</Text>
+                 <Text style={styles.totalVal}>₹{displayData?.total || '0'}</Text>
+              </View>
+              <Text style={styles.paymentSub}>Include all taxes and service fees</Text>
           </View>
-        )}
-
-        {/* ACTION BUTTON */}
-        <TouchableOpacity style={[styles.cta, { backgroundColor: theme.accent }]}>
-          <Text style={{ color: "#FFF", fontWeight: "700" }}>{actionLabel}</Text>
-        </TouchableOpacity>
-
-        {/* FOOTER */}
-        <Text style={styles.footer}>
-          ✔ Background-verified professionals • Need help? Contact support
-        </Text>
-
+        </View>
       </ScrollView>
-    </LinearGradient>
+
+      {/* FOOTER */}
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push("/")}>
+          <Text style={styles.primaryBtnText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  title: { fontSize: 26, fontWeight: "800", textAlign: "center", marginBottom: 16 },
-
-  card: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
-    elevation: 2,
+const getStyles = (darkMode: boolean) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: darkMode ? "#000" : "#F8FAFC" },
+  
+  // Header Fix
+  headerSafeArea: { backgroundColor: darkMode ? "#000" : "#FFF", zIndex: 10 },
+  navHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, height: 60,
   },
+  titleContainer: { alignItems: 'center' },
+  navTitle: { fontSize: 16, fontWeight: '800', color: darkMode ? "#FFF" : "#1E293B" },
+  liveTag: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  liveLabel: { fontSize: 10, fontWeight: '700', color: '#94A3B8', marginLeft: 4 },
+  pulseDot: { width: 6, height: 6, borderRadius: 3 },
+  navBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 
-  sectionTitle: { fontSize: 16, fontWeight: "700" },
+  // Map Layout
+  mapWrapper: { height: 240, width: '100%', overflow: 'hidden' },
+  map: { flex: 1 },
+  proMarker: { backgroundColor: Colors.primary, padding: 8, borderRadius: 14, borderWidth: 3, borderColor: 'white' },
 
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+  // Content
+  contentContainer: { marginTop: -20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: darkMode ? "#000" : "#F8FAFC", paddingTop: 10 },
+  card: { backgroundColor: darkMode ? "#111" : "#FFF", marginHorizontal: 16, marginBottom: 16, borderRadius: 24, padding: 20, elevation: 1 },
+  cardHeader: { fontSize: 11, fontWeight: '800', color: '#94A3B8', marginBottom: 20, letterSpacing: 1 },
+  
+  stepper: { marginLeft: 5 },
+  stepRow: { flexDirection: 'row', minHeight: 65 },
+  indicatorCol: { alignItems: 'center', marginRight: 16 },
+  stepCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: darkMode ? "#222" : "#F1F5F9", alignItems: 'center', justifyContent: 'center' },
+  circleActive: { backgroundColor: Colors.primary },
+  stepLine: { width: 2, flex: 1, backgroundColor: '#F1F5F9', marginVertical: -4 },
+  lineActive: { backgroundColor: Colors.primary },
+  
+  stepTextCol: { paddingTop: 6 },
+  stepLabel: { fontSize: 15, fontWeight: '700', color: '#94A3B8' },
+  labelActive: { color: darkMode ? "#FFF" : "#1E293B" },
+  currentDesc: { fontSize: 11, color: Colors.primary, fontWeight: '600', marginTop: 2 },
 
-  trackerRow: { flexDirection: "row", justifyContent: "space-between" },
+  workerBadgeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: darkMode ? "#111" : "#FFF", marginHorizontal: 16, padding: 16, borderRadius: 24, marginBottom: 16 },
+  initialsCircle: { width: 54, height: 54, borderRadius: 18, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
+  initialsText: { fontSize: 18, fontWeight: '800', color: '#475569' },
+  verifiedIcon: { position: 'absolute', bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.primary, borderWidth: 2, borderColor: 'white', alignItems: 'center', justifyContent: 'center' },
+  workerInfo: { flex: 1, marginLeft: 16 },
+  workerNameText: { fontSize: 17, fontWeight: '800', color: darkMode ? "#FFF" : "#1E293B" },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  ratingText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
+  callFab: { width: 50, height: 50, borderRadius: 16, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center', elevation: 4 },
 
-  stepWrapper: { alignItems: "center", flex: 1 },
-  stepIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 2,
-  },
-  stepLine: {
-    position: "absolute",
-    top: 16,
-    right: "-50%",
-    width: "100%",
-    height: 3,
-    backgroundColor: "#CBD5F5",
-    zIndex: 1,
-  },
+  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { fontSize: 15, fontWeight: '700', color: '#64748B' },
+  totalVal: { fontSize: 24, fontWeight: '900', color: Colors.primary },
+  paymentSub: { fontSize: 11, color: '#94A3B8', marginTop: 4 },
 
-  workerRow: { flexDirection: "row", gap: 12, alignItems: "center" },
-  avatar: { width: 56, height: 56, borderRadius: 28 },
-
-  actionRow: { flexDirection: "row", gap: 12, marginTop: 8 },
-  iconBtn: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#FFF1E6",
-  },
-
-  cta: {
-    padding: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    marginTop: 10,
-  },
-
-  footer: {
-    textAlign: "center",
-    fontSize: 12,
-    opacity: 0.7,
-    marginTop: 20,
-  },
+  footer: { position: 'absolute', bottom: 30, width: '100%', paddingHorizontal: 20 },
+  primaryBtn: { backgroundColor: '#1E293B', height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  primaryBtnText: { color: 'white', fontSize: 16, fontWeight: '800' }
 })

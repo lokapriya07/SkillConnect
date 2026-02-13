@@ -299,7 +299,7 @@ export default function DashboardScreen() {
             </View>
       )}
 
-      <View style={styles.ongoingContainer}>
+      {/* <View style={styles.ongoingContainer}>
         <Text style={styles.sectionTitle}>🔧 Ongoing Job</Text>
         <View style={styles.activeJobInner}>
           <View style={styles.rowBetween}>
@@ -325,7 +325,7 @@ export default function DashboardScreen() {
             <Text style={styles.whiteBtnText}>Mark as Completed</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </View> */}
 
       {/* Performance */}
       <View style={styles.whiteCard}>

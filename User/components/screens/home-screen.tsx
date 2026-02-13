@@ -5,6 +5,8 @@ import { categories, getFeaturedServices, getPopularServices } from "@/lib/servi
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
+
+
 import React, { useEffect, useRef, useState } from "react"
 import {
   Dimensions,
@@ -98,14 +100,34 @@ export default function HomeScreen() {
     }
   }, [user]);
   // Auto-slide effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
-      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-      setActiveIndex(nextIndex);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, [activeIndex]);
+//   useEffect(() => {
+//     const interval = setInterval(() => {
+//       let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
+//       flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+//       return nextIndex;
+//     });
+//   }, 3500);
+
+//   return () => clearInterval(interval);
+// }, []);
+useEffect(() => {
+  const interval = setInterval(() => {
+    let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
+    
+    flatListRef.current?.scrollToIndex({ 
+      index: nextIndex, 
+      animated: true 
+    });
+
+    // If you need to update the activeIndex state as well:
+    // setActiveIndex(nextIndex); 
+    
+  }, 3500);
+
+  // The cleanup function must be INSIDE the useEffect
+  return () => clearInterval(interval);
+}, [activeIndex]); // Added activeIndex here so the logic knows the current position
+
 
   const handleScroll = (event: any) => {
     const scrollPos = event.nativeEvent.contentOffset.x;

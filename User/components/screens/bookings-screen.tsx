@@ -11,7 +11,14 @@ import { useRouter } from "expo-router"
 
 export default function BookingsScreen() {
     const router = useRouter()
-    const { bookings, updateBooking, cancelBooking, darkMode } = useAppStore()
+    const { bookings, updateBooking, cancelBooking, darkMode, user } = useAppStore()
+
+    const currentUserId = user?._id || user?.id
+    // Filter bookings: show only current user's bookings, or bookings without userId (backwards compatibility)
+    const userBookingsList = bookings.filter(b => 
+        b.status !== "cancelled" && 
+        (!b.userId || b.userId === currentUserId)
+    )
 
     // Theme colors
     const backgroundColor = darkMode ? Colors.backgroundDark : Colors.background
@@ -107,8 +114,6 @@ export default function BookingsScreen() {
         }
     }
 
-    const visibleBookings = bookings.filter(b => b.status !== "cancelled")
-
     // Dynamic styles
     const getStyles = () => StyleSheet.create({
         container: { flex: 1, backgroundColor: backgroundColor },
@@ -150,13 +155,13 @@ export default function BookingsScreen() {
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {visibleBookings.length === 0 ? (
+                {userBookingsList.length === 0 ? (
                     <View style={styles.emptyContainer}>
                         <Ionicons name="calendar-outline" size={80} color={textSecondaryColor} />
                         <Text style={styles.emptyText}>No bookings found</Text>
                     </View>
                 ) : (
-                    visibleBookings.map((booking: any) => {
+                    userBookingsList.map((booking: any) => {
                         const worker = booking.worker
                         const status = booking.status?.toLowerCase() || "confirmed"
                         const isActive = status === "upcoming" || status === "confirmed"

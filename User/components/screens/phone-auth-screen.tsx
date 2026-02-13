@@ -1,5 +1,7 @@
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import { useRouter } from "expo-router";
+
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
@@ -13,9 +15,12 @@ import {
   View,
 } from "react-native";
 
-export default function PhoneAuthScreen({ onSubmit, onSkip }: any) {
+export default function PhoneAuthScreen() 
+ {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  const router = useRouter();
 
   // 🔥 REAL OTP SEND LOGIC (Twilio backend)
   const handleSendOtp = async () => {
@@ -47,7 +52,11 @@ export default function PhoneAuthScreen({ onSubmit, onSkip }: any) {
         Alert.alert("Success", "OTP sent to " + fullPhone);
 
         // move to OTP screen
-        onSubmit(fullPhone);
+        router.push({
+  pathname: "/auth/otp",
+  params: { phone: fullPhone },
+});
+
       } else {
         Alert.alert("Error", data.error || "Failed to send OTP");
       }
@@ -66,11 +75,10 @@ export default function PhoneAuthScreen({ onSubmit, onSkip }: any) {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>ServiceHub</Text>
-          {onSkip && (
-            <TouchableOpacity onPress={onSkip}>
-              <Text style={styles.skipText}>Skip</Text>
-            </TouchableOpacity>
-          )}
+         <TouchableOpacity onPress={() => router.replace("/(tabs)")}>
+  <Text style={styles.skipText}>Skip</Text>
+</TouchableOpacity>
+
         </View>
 
         <View style={styles.illustrationContainer}>
