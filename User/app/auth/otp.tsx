@@ -23,5 +23,6 @@ export default function OtpPage() {
       // Optional: Add logic here if you want to handle resend at the page level
       onResend={() => console.log("Resend requested for:", displayPhone)}
     />
+    
   )
 }

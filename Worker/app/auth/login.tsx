@@ -427,6 +427,7 @@
 //     footerText: { color: colors.mutedText, fontSize: 15 },
 //     signupText: { color: colors.primaryBlue, fontWeight: "bold", fontSize: 15 },
 // });
+
 import { useAppStore } from "@/lib/store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
