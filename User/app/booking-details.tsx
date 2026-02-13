@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons"
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps"
 import { BlurView } from 'expo-blur'
 
+
 const { width, height } = Dimensions.get("window")
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
