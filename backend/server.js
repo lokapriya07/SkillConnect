@@ -187,6 +187,8 @@ io.on('connection', (socket) => {
         }
     });
 });
+app.use(express.json()); 
+app.use(express.urlencoded({ extended: true }));
 
 // 5. ROUTES
 app.use('/api/auth', require('./routes/auth'));

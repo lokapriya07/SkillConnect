@@ -1,102 +1,9 @@
-// // const express = require("express");
-// // const router = express.Router();
-// // const bcrypt = require("bcryptjs");
-// // const jwt = require("jsonwebtoken");
-
-// // const User = require("../models/User");
-// // const Work = require("../models/Work");
-
-// // /* =========================
-// //    SIGNUP (User / Worker)
-// // ========================= */
-// // router.post("/signup", async (req, res) => {
-// //   try {
-// //     const { name, email, password, role } = req.body;
-
-// //     if (!name || !email || !password || !role) {
-// //       return res.status(400).json({ msg: "All fields are required" });
-// //     }
-
-// //     if (!["client", "worker"].includes(role)) {
-// //       return res.status(400).json({ msg: "Invalid role" });
-// //     }
-
-// //     const Model = role === "worker" ? Work : User;
-
-// //     const existing = await Model.findOne({ email });
-// //     if (existing) {
-// //       return res.status(400).json({ msg: "Email already registered" });
-// //     }
-
-// //     const hashedPassword = await bcrypt.hash(password, 10);
-
-// //     const newAccount = new Model({
-// //       name,
-// //       email,
-// //       password: hashedPassword,
-// //     });
-
-// //     await newAccount.save();
-
-// //     res.status(201).json({
-// //       msg: `${role === "worker" ? "Worker" : "User"} created successfully`,
-// //     });
-// //   } catch (err) {
-// //     res.status(500).json({ error: err.message });
-// //   }
-// // });
-
-// // /* =========================
-// //    LOGIN (Role Safe)
-// // ========================= */router.post("/login", async (req, res) => {
-// //   try {
-// //     const { email, password, role } = req.body;
-
-// //     // Validation
-// //     if (!email || !password) {
-// //       return res.status(400).json({ msg: "Email and password are required" });
-// //     }
-
-// //     // If frontend forgets to send role, default to 'client' or handle error
-// //     const selectedRole = role || "client";
-// //     const Model = selectedRole === "worker" ? Work : User;
-
-// //     const account = await Model.findOne({ email: email.toLowerCase().trim() });
-
-// //     if (!account) {
-// //       return res.status(400).json({ msg: "Account not found in " + selectedRole + " records" });
-// //     }
-
-// //     const isMatch = await bcrypt.compare(password, account.password);
-// //     if (!isMatch) {
-// //       return res.status(400).json({ msg: "Invalid password" });
-// //     }
-
-// //     const token = jwt.sign(
-// //       { id: account._id, role: selectedRole },
-// //       process.env.JWT_SECRET,
-// //       { expiresIn: "1d" }
-// //     );
-
-// //     res.json({
-// //       token,
-// //       user: {
-// //         id: account._id,
-// //         name: account.name,
-// //         email: account.email,
-// //         role: selectedRole,
-// //       },
-// //     });
-// //   } catch (err) {
-// //     res.status(500).json({ error: err.message });
-// //   }
-// // });
-
-// // module.exports = router;
 // const express = require('express');
 // const router = express.Router();
 // const User = require('../models/User');
 // const bcrypt = require('bcryptjs');
+// require('dotenv').config();
+
 
 // // --- SIGNUP ---
 // router.post('/signup', async (req, res) => {
@@ -138,49 +45,126 @@
 //     const isMatch = await bcrypt.compare(password, user.password);
 //     if (!isMatch) return res.status(400).json({ msg: "Invalid Credentials" });
 
+//     // Get worker profile ID if logging in as worker
+//     let workerProfileId = null;
+//     if (role === 'worker') {
+//       const Work = require('../models/Work');
+//       const workerProfile = await Work.findOne({ userId: user._id });
+//       if (workerProfile) {
+//         workerProfileId = workerProfile._id;
+//       }
+//     }
+
+//     // SUCCESS: Return user info AND the unique ID
 //     res.json({
+//       success: true,
 //       user: {
+//         id: user._id, // CRITICAL: This allows profile saving
+//         workerProfileId: workerProfileId, // Work model's _id for assigned jobs lookup
 //         name: user.name,
 //         email: user.email,
 //         role: user.role,
-//         phone: user.phone
+//         phone: user.phone || ""
 //       }
 //     });
 //   } catch (err) {
 //     res.status(500).json({ msg: "Server error during login" });
 //   }
 // });
+// router.get('/workers', async (req, res) => {
+//   try {
+//     // We select '-password' to ensure the hashed password is never sent to the client
+//     const workers = await User.find({ role: 'worker' }).select('-password');
+
+//     res.json({
+//       success: true,
+//       count: workers.length,
+//       workers
+//     });
+//   } catch (err) {
+//     console.error("❌ Error fetching workers:", err);
+//     res.status(500).json({ msg: "Server error fetching workers" });
+//   }
+// });
+// // --- UPDATE PROFILE ---
+// router.put('/update-profile/:id', async (req, res) => {
+//   try {
+//     const { name, email, phone } = req.body;
+//     const userId = req.params.id;
+
+//     // Find user and update
+//     const updatedUser = await User.findByIdAndUpdate(
+//       userId,
+//       { 
+//         name, 
+//         email: email.toLowerCase(), 
+//         phone 
+//       },
+//       { new: true } // returns the updated document
+//     ).select('-password');
+
+//     if (!updatedUser) {
+//       return res.status(404).json({ msg: "User not found" });
+//     }
+
+//     res.json({
+//       success: true,
+//       user: {
+//         id: updatedUser._id,
+//         name: updatedUser.name,
+//         email: updatedUser.email,
+//         role: updatedUser.role,
+//         phone: updatedUser.phone || ""
+//       }
+//     });
+//   } catch (err) {
+//     console.error("❌ Error updating profile:", err);
+//     res.status(500).json({ msg: "Server error during profile update" });
+//   }
+// });
 
 // module.exports = router;
-
-
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-
 // --- SIGNUP ---
 router.post('/signup', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-    let user = await User.findOne({ email: email.toLowerCase() });
-    if (user) return res.status(400).json({ msg: "User already exists" });
+    const { name, email, phone, password, role } = req.body;
 
+    // 1. Validation: Ensure no fields are missing
+    if (!name || !email || !phone || !password || !role) {
+      return res.status(400).json({ msg: "Please fill in all fields (name, email, phone, password, role)" });
+    }
+
+    // 2. Check if email already exists
+    let userByEmail = await User.findOne({ email: email.toLowerCase().trim() });
+    if (userByEmail) return res.status(400).json({ msg: "User with this email already exists" });
+
+    // 3. Check if phone already exists
+    let userByPhone = await User.findOne({ phone: phone.toString().trim() });
+    if (userByPhone) return res.status(400).json({ msg: "Phone number already in use" });
+
+    // 4. Hash Password (Safely convert to string to avoid "Illegal arguments" error)
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(String(password), salt);
 
-    user = new User({
-      name,
-      email: email.toLowerCase(),
+    // 5. Create and Save User
+    const user = new User({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone.toString().trim(),
       password: hashedPassword,
       role // 'client' or 'worker'
     });
 
     await user.save();
-    res.status(201).json({ msg: "Account created successfully" });
+    res.status(201).json({ success: true, msg: "Account created successfully" });
   } catch (err) {
+    console.error("Signup Error:", err);
     res.status(500).json({ msg: "Server error during signup" });
   }
 });
@@ -189,34 +173,42 @@ router.post('/signup', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password, role } = req.body;
-    const user = await User.findOne({ email: email.toLowerCase() });
 
-    if (!user) return res.status(400).json({ msg: "Invalid Credentials" });
-
-    // ROLE CHECK: Prevent Worker from logging into User app
-    if (user.role !== role) {
-      return res.status(403).json({ msg: `Access denied. This account is a ${user.role}.` });
+    if (!email || !password || !role) {
+      return res.status(400).json({ msg: "Please provide email, password, and role" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) return res.status(400).json({ msg: "Invalid Credentials" });
+
+    // ROLE CHECK: Ensure user is logging into the correct app/portal
+    if (user.role !== role) {
+      return res.status(403).json({ msg: `Access denied. This account is registered as a ${user.role}.` });
+    }
+
+    const isMatch = await bcrypt.compare(String(password), user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid Credentials" });
 
-    // Get worker profile ID if logging in as worker
+    // Get worker profile ID if logging in as worker (Optional logic from your previous code)
     let workerProfileId = null;
     if (role === 'worker') {
-      const Work = require('../models/Work');
-      const workerProfile = await Work.findOne({ userId: user._id });
-      if (workerProfile) {
-        workerProfileId = workerProfile._id;
+      try {
+        const Work = require('../models/Work');
+        const workerProfile = await Work.findOne({ userId: user._id });
+        if (workerProfile) {
+          workerProfileId = workerProfile._id;
+        }
+      } catch (e) {
+        console.log("Work model not found or error fetching worker profile.");
       }
     }
 
-    // SUCCESS: Return user info AND the unique ID
+    // SUCCESS: Return full user data including phone
     res.json({
       success: true,
       user: {
-        id: user._id, // CRITICAL: This allows profile saving
-        workerProfileId: workerProfileId, // Work model's _id for assigned jobs lookup
+        id: user._id,
+        workerProfileId: workerProfileId,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -224,14 +216,15 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (err) {
+    console.error("Login Error:", err);
     res.status(500).json({ msg: "Server error during login" });
   }
 });
+
+// --- GET WORKERS ---
 router.get('/workers', async (req, res) => {
   try {
-    // We select '-password' to ensure the hashed password is never sent to the client
     const workers = await User.find({ role: 'worker' }).select('-password');
-
     res.json({
       success: true,
       count: workers.length,
@@ -243,5 +236,48 @@ router.get('/workers', async (req, res) => {
   }
 });
 
+// --- UPDATE PROFILE (Saves to Database) ---
+router.put('/update-profile/:id', async (req, res) => {
+  try {
+    const { name, email, phone } = req.body;
+    const userId = req.params.id;
+
+    // 1. Find user and update in DB
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { 
+        name: name?.trim(), 
+        email: email?.toLowerCase().trim(), 
+        phone: phone?.toString().trim() 
+      },
+      { new: true, runValidators: true } // 'new: true' returns the updated version
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    // 2. Return the new data to frontend
+    res.json({
+      success: true,
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        phone: updatedUser.phone || ""
+      }
+    });
+  } catch (err) {
+    console.error("❌ Error updating profile:", err);
+    
+    // Handle Duplicate Key Error (e.g., trying to change email to one that exists)
+    if (err.code === 11000) {
+      return res.status(400).json({ msg: "Email or Phone number is already in use by another account" });
+    }
+    
+    res.status(500).json({ msg: "Server error during profile update" });
+  }
+});
 
 module.exports = router;
