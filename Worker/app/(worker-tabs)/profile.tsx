@@ -1,4 +1,4 @@
-import React, { useState,useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -38,6 +38,7 @@ import {
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useVerification } from '@/context/VerificationContext';
 
 const { width } = Dimensions.get("window");
 
@@ -171,23 +172,6 @@ export default function ProfilePage({ navigation }: any) {
         console.error("Fetch Error:", error);
       }
     };
-    const loadVerificationStatus = async () => {
-      try {
-        const isVerified = await AsyncStorage.getItem('is_verified_worker');
-        const hasRequested = await AsyncStorage.getItem('verification_requested');
-
-        if (isVerified === 'true') {
-          setVerificationStatus('verified');
-        } else if (hasRequested === 'true') {
-          setVerificationStatus('pending');
-        } else {
-          setVerificationStatus('not_submitted'); // Explicitly set for new workers
-        }
-      } catch (e) {
-        setVerificationStatus('not_submitted');
-      }
-    };
-    loadVerificationStatus();
 
     fetchExistingProfile();
   }, []);
@@ -225,11 +209,17 @@ export default function ProfilePage({ navigation }: any) {
     ]);
   };
   
-  const [verificationStatus, setVerificationStatus] = useState('not_submitted');
+  // Use verification context for real-time status updates
+  const { verificationStatus, setVerificationStatus } = useVerification();
+  
+  // Type guard: verificationStatus includes 'verified' from context
+  type VerificationStatusType = 'not_submitted' | 'pending' | 'assigned' | 'verified';
+  const typedVerificationStatus = verificationStatus as VerificationStatusType;
+  
   const tabs = [
     { value: "profile", label: "Profile", icon: User },
     // Only include Verification if the status is NOT 'verified'
-    ...(verificationStatus !== 'verified'
+    ...(verificationStatus !== 'verified' && verificationStatus !== null
       ? [{ value: "verification", label: "Verification", icon: Shield }]
       : []),
     { value: "portfolio", label: "Portfolio", icon: Briefcase },
@@ -238,10 +228,10 @@ export default function ProfilePage({ navigation }: any) {
   const handleRequestVerification = async () => {
     if (consentChecked && experience && aadhaarLastFour.length === 4) {
       try {
-        // 1. Update local UI state in ProfilePage
+        // 1. Update context state (this updates Header immediately)
         setVerificationStatus('pending');
 
-        // 2. Persist to storage so the Header can see the "Pending" status
+        // 2. Persist to storage
         await AsyncStorage.setItem('verification_requested', 'true');
 
         Alert.alert("Request Sent", "A verification executive will be assigned soon.");
@@ -256,8 +246,11 @@ export default function ProfilePage({ navigation }: any) {
   // 2. CALL THIS when the [Dev Only] Complete Verification button is clicked
   const handleCompleteVerification = async () => {
     try {
-      setVerificationStatus('verified'); // Local UI update
-      await AsyncStorage.setItem('is_verified_worker', 'true'); // Persistent Header update
+      // Update context state (this updates Header immediately)
+      setVerificationStatus('verified');
+      
+      // Persist to storage
+      await AsyncStorage.setItem('is_verified_worker', 'true');
 
       // Auto-switch to profile tab so the verification tab can disappear
       setActiveTab('profile');
@@ -643,18 +636,18 @@ export default function ProfilePage({ navigation }: any) {
                 <View style={[styles.card, styles.statusCard,
                 verificationStatus === 'not_submitted' && { borderColor: '#fde047' },
                 (verificationStatus === 'pending' || verificationStatus === 'assigned') && { borderColor: '#fb923c' },
-                verificationStatus === 'verified' && { borderColor: '#22c55e', backgroundColor: '#f0fdf4' }
+                typedVerificationStatus === 'verified' && { borderColor: '#22c55e', backgroundColor: '#f0fdf4' }
                 ]}>
                   <View style={styles.row}>
                     {verificationStatus === 'not_submitted' && <AlertCircle color="#eab308" size={24} />}
                     {(verificationStatus === 'pending' || verificationStatus === 'assigned') && <Clock color="#f97316" size={24} />}
-                    {verificationStatus === 'verified' && <CheckCircle2 color="#16a34a" size={24} />}
+                    {typedVerificationStatus === 'verified' && <CheckCircle2 color="#16a34a" size={24} />}
 
                     <View style={{ marginLeft: 12 }}>
                       <Text style={[styles.statusText,
                       verificationStatus === 'not_submitted' && { color: '#854d0e' },
                       (verificationStatus === 'pending' || verificationStatus === 'assigned') && { color: '#9a3412' },
-                      verificationStatus === 'verified' && { color: '#166534' }
+                      typedVerificationStatus === 'verified' && { color: '#166534' }
                       ]}>
                         Status: {
                           verificationStatus === 'not_submitted' ? 'Pending Action' :
@@ -663,7 +656,7 @@ export default function ProfilePage({ navigation }: any) {
                         }
                       </Text>
                       <Text style={styles.statusSubtext}>
-                        {verificationStatus === 'verified' ? 'You are a trusted worker.' : 'Complete verification to get more job requests and higher pay.'}
+                        {typedVerificationStatus === 'verified' ? 'You are a trusted worker.' : 'Complete verification to get more job requests and higher pay.'}
                       </Text>
                     </View>
                   </View>
@@ -827,7 +820,7 @@ export default function ProfilePage({ navigation }: any) {
                 )}
 
                 {/* STATE 4: SUCCESSFUL VERIFICATION */}
-                {verificationStatus === 'verified' && (
+                {typedVerificationStatus === 'verified' && (
                   <View>
                     <View style={styles.card}>
                       <View style={{ alignItems: 'center', padding: 10 }}>

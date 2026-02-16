@@ -56,6 +56,9 @@ interface DisplayJob {
   unreadMessages?: number;
   milestones: Milestone[];
   isAssignedJob?: boolean;
+  isHiredJob?: boolean;
+  hiredAmount?: number | null;
+  workerStatus?: string;
   userName?: string;
   userPhone?: string;
   scheduledDate?: string;
@@ -192,15 +195,19 @@ export default function ActiveJobsPage() {
       paidAmount: job.paidAmount || 0,
       scheduledDate: job.scheduledDate || "Date TBD",
       scheduledTime: job.scheduledTime || "Time TBD",
-      // Map statuses correctly for the tabs
+      // Map statuses correctly for the tabs - include hired/booked statuses
       status: job.status === "assigned" ? "upcoming" : 
+              job.status === "hired" || job.status === "booked" ? "upcoming" :
               job.status === "in_progress" ? "active" : 
               job.status === "completed" ? "completed" : "upcoming",
+      isHiredJob: job.isHiredJob || false,
+      hiredAmount: job.hiredAmount || null,
+      workerStatus: job.workerStatus || 'Assigned',
       progress: job.status === "in_progress" ? 50 : job.status === "completed" ? 100 : 0,
       address: job.fullAddress || job.address || "Address not available",
       latitude: job.location?.coordinates?.[1],
       longitude: job.location?.coordinates?.[0],
-      milestones: [{ id: "m1", title: "Service Completion", amount: job.totalAmount || job.budget, status: job.status === 'completed' ? 'paid' : 'pending' }],
+      milestones: [{ id: "m1", title: "Service Completion", amount: job.totalAmount || job.budget, status: job.status === 'completed' ? 'paid' as const : 'pending' as const }],
       originalJob: job,
     }));
   }, [assignedJobs]);
@@ -209,7 +216,17 @@ export default function ActiveJobsPage() {
     return displayAssignedJobs.filter(job => job.status === activeTab);
   }, [displayAssignedJobs, activeTab]);
 
-  const getJobStatusBadge = (status: string) => {
+  const getJobStatusBadge = (job: DisplayJob) => {
+    const status = job.status;
+    // Special badge for hired jobs
+    if (job.isHiredJob && status === "upcoming") {
+      return (
+        <View style={[styles.badge, styles.bgHiredSoft]}>
+          <CheckCircle size={12} color="#059669" style={{ marginRight: 4 }} />
+          <Text style={styles.textHired}>You're Hired!</Text>
+        </View>
+      );
+    }
     if (status === "active") return <View style={[styles.badge, styles.bgPrimarySoft]}><Text style={styles.textPrimary}>In Progress</Text></View>;
     if (status === "upcoming") return <View style={[styles.badge, styles.bgAmberSoft]}><Text style={styles.textAmber}>Assigned</Text></View>;
     if (status === "completed") return <View style={[styles.badge, styles.bgGreenSoft]}><CheckCircle size={12} color="#15803d" style={{ marginRight: 4 }} /><Text style={styles.textGreen}>Completed</Text></View>;
@@ -281,7 +298,7 @@ export default function ActiveJobsPage() {
                         <Text style={styles.jobTitleText} numberOfLines={1}>{job.title}</Text>
                         <Text style={styles.clientNameText}>{job.client}</Text>
                       </View>
-                      {getJobStatusBadge(job.status)}
+                      {getJobStatusBadge(job)}
                     </View>
 
                     <View style={styles.serviceInfoBanner}>
@@ -462,6 +479,8 @@ const styles = StyleSheet.create({
   textAmber: { color: "#b45309", fontSize: 12, fontWeight: "600" },
   bgGreenSoft: { backgroundColor: "#f0fdf4" },
   textGreen: { color: "#15803d", fontSize: 12, fontWeight: "600" },
+  bgHiredSoft: { backgroundColor: "#d1fae5" },
+  textHired: { color: "#059669", fontSize: 12, fontWeight: "700" },
   bgSecondary: { backgroundColor: "#f1f5f9" },
   textSecondary: { color: "#475569", fontSize: 12, fontWeight: "600" },
   serviceInfoBanner: { flexDirection: "row", backgroundColor: "#f8fafc", borderRadius: 8, padding: 8, marginBottom: 12, gap: 16 },

@@ -25,8 +25,17 @@ const bidSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "accepted", "rejected"],
+      enum: ["pending", "accepted", "rejected", "hired", "closed"],
       default: "pending",
+    },
+    // Track if this bid resulted in a hire
+    hiredAt: {
+      type: Date,
+    },
+    // Job owner who hired the worker
+    hiredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
   },
   { timestamps: true }

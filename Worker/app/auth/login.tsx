@@ -499,6 +499,11 @@ export default function Login() {
             const data = await response.json();
 
             if (response.ok) {
+                // --- CLEAR PREVIOUS USER'S VERIFICATION STATUS ---
+                // This ensures a new worker starts fresh without inheriting old verification status
+                await AsyncStorage.removeItem('is_verified_worker');
+                await AsyncStorage.removeItem('verification_requested');
+
                 // --- SAVE COMPLETE USER OBJECT FOR JOBS PAGE ---
                 // This includes workerProfileId which is needed to fetch assigned jobs
                 const userData = {

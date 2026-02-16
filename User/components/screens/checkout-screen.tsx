@@ -3,6 +3,7 @@ import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
 import React, { useState } from "react"
 import {
+    ActivityIndicator,
     Dimensions,
     Platform,
     ScrollView,
@@ -19,6 +20,7 @@ const { width } = Dimensions.get("window")
 interface CheckoutScreenProps {
   onBack: () => void
   onConfirm: () => void
+  params?: any
 }
 
 const timeSlots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"]
@@ -30,9 +32,32 @@ const paymentMethods = [
   { id: "cash", name: "Cash on Service", icon: "cash-outline" },
 ]
 
-export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProps) {
+export default function CheckoutScreen({ onBack, onConfirm, params }: CheckoutScreenProps) {
   // 1. Get data from Global Store
   const { cart, getCartTotal, currentLocation, addBooking, clearCart, activeJobs, clearJobs, darkMode, user } = useAppStore()
+  
+  // Extract params for hiring flow  
+  const hirableJobId = params?.jobId || null;
+  const hirableWorkerId = params?.workerId || null;
+  const hirableBidId = params?.bidId || null;
+  const workerName = params?.workerName || "";
+  const workerAmount = params?.amount || "";
+  
+  // Determine if this is a hiring flow (requires all three IDs + bidId specifically)
+  const isHiringFlow = !!(hirableJobId && hirableWorkerId && hirableBidId);
+  
+  // Debug logging
+  const [debugInfo] = React.useState(() => {
+    console.log('[CHECKOUT] Params received:', {
+      jobId: hirableJobId,
+      workerId: hirableWorkerId,
+      bidId: hirableBidId,
+      workerName,
+      amount: workerAmount,
+      isHiringFlow
+    });
+    return null;
+  });
   
   // Get the first/most recent active job for checkout
   const activeJob = activeJobs[0]
@@ -40,7 +65,8 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [selectedPayment, setSelectedPayment] = useState<string>("card")
-  const [bidAmount, setBidAmount] = useState(activeJob?.budget || "")
+  const [bidAmount, setBidAmount] = useState(isHiringFlow ? workerAmount : (activeJob?.budget || ""))
+  const [isProcessing, setIsProcessing] = useState(false)
 
   // Theme colors
   const backgroundColor = darkMode ? Colors.backgroundDark : Colors.background
@@ -80,53 +106,126 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
     }
   }
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (selectedDate && selectedTime) {
-      // Determine if this is truly a bid flow (user submitted a custom bid amount)
-      const hasBidAmount = bidAmount && bidAmount !== "" && parseFloat(bidAmount) > 0;
-      
-      // Get payment method name from ID
-      const paymentMethodName = paymentMethods.find(p => p.id === selectedPayment)?.name || "Cash on Service";
-      
-      // Extract service category from cart or active job
-      const serviceCategory = hasBidAmount 
-        ? 'custom'
-        : (cart[0]?.service?.category || cart[0]?.service?.name?.toLowerCase() || 'general');
-      
-      const newBooking = {
-        id: Math.random().toString(36).substr(2, 9),
-        userId: user?._id || user?.id || '', // Add userId to associate booking with user
-        items: hasBidAmount && activeJob?.description
-          ? [
-              {
-                service: {
-                  id: "bid-" + Date.now(),
-                  name: activeJob?.description || "Custom Service Request",
-                  description: activeJob?.description || "",
-                  price: subtotal,
-                  duration: "N/A",
-                  image: "",
-                  rating: 0,
-                  reviews: 0,
-                  category: "Bid",
-                },
-                quantity: 1,
-              },
-            ]
-          : cart,
-        total: total,
-        status: "confirmed" as const,
-        date: selectedDate.toDateString(),
-        time: selectedTime,
-        address: currentLocation?.address || "Default Address",
-        paymentMethod: paymentMethodName,
-        serviceCategory: serviceCategory, // Store category for worker matching
-      }
+      setIsProcessing(true);
+      try {
+        if (isHiringFlow) {
+          // HIRING FLOW: Call the hire API endpoint
+          const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+          
+          // Get current user ID
+          const hirerId = user?._id || user?.id;
+          
+          // Validate all required IDs before making API call
+          if (!hirableBidId) {
+            throw new Error('Missing Bid ID - cannot proceed with hiring');
+          }
+          if (!hirerId) {
+            throw new Error('User not logged in - cannot identify hirer');
+          }
 
-      addBooking(newBooking)
-      clearCart()
-      clearJobs() // Clear active jobs to prevent old job data from interfering with future bookings
-      onConfirm()
+          const hireUrl = `${API_BASE_URL}/api/bids/${hirableBidId}/hire`;
+          console.log('[HIRE API] Calling:', hireUrl, {
+            jobId: hirableJobId,
+            workerId: hirableWorkerId,
+            hirerId: hirerId,
+            bidAmount: parseFloat(workerAmount || "0"),
+            scheduledDate: selectedDate.toDateString(),
+            scheduledTime: selectedTime
+          });
+
+          const hireResponse = await fetch(hireUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              jobId: hirableJobId,
+              workerId: hirableWorkerId,
+              hirerId: hirerId,
+              bidAmount: parseFloat(workerAmount || "0"),
+              scheduledDate: selectedDate.toDateString(),
+              scheduledTime: selectedTime,
+              paymentMethod: paymentMethods.find(p => p.id === selectedPayment)?.name || "Cash on Service",
+            })
+          });
+
+          const hireData = await hireResponse.json();
+          
+          console.log('[HIRE API] Response:', hireResponse.status, hireData);
+
+          if (!hireResponse.ok || !hireData.success) {
+            // @ts-ignore
+            throw new Error(hireData.message || `Failed to hire worker (${hireResponse.status})`);
+          }
+
+          // Success - proceed to confirmation
+          // Note: The worker notification is sent by the backend
+          clearCart();
+          clearJobs();
+          onConfirm();
+        } else {
+          // REGULAR BOOKING FLOW
+          // Determine if this is truly a bid flow (user submitted a custom bid amount)
+          const hasBidAmount = bidAmount && bidAmount !== "" && parseFloat(bidAmount) > 0;
+          
+          // Get payment method name from ID
+          const paymentMethodName = paymentMethods.find(p => p.id === selectedPayment)?.name || "Cash on Service";
+          
+          // Extract service category from cart or active job
+          const serviceCategory = hasBidAmount 
+            ? 'custom'
+            : (cart[0]?.service?.category || cart[0]?.service?.name?.toLowerCase() || 'general');
+          
+          const newBooking = {
+            id: Math.random().toString(36).substr(2, 9),
+            userId: user?._id || user?.id || '', // Add userId to associate booking with user
+            items: hasBidAmount && activeJob?.description
+              ? [
+                  {
+                    service: {
+                      id: "bid-" + Date.now(),
+                      name: activeJob?.description || "Custom Service Request",
+                      description: activeJob?.description || "",
+                      price: subtotal,
+                      duration: "N/A",
+                      image: "",
+                      rating: 0,
+                      reviews: 0,
+                      category: "Bid",
+                    },
+                    quantity: 1,
+                  },
+                ]
+              : cart,
+            total: total,
+            status: "confirmed" as const,
+            date: selectedDate.toDateString(),
+            time: selectedTime,
+            address: currentLocation?.address || "Default Address",
+            paymentMethod: paymentMethodName,
+            serviceCategory: serviceCategory, // Store category for worker matching
+          }
+
+          addBooking(newBooking)
+          clearCart()
+          clearJobs() // Clear active jobs to prevent old job data from interfering with future bookings
+          onConfirm()
+        }
+      } catch (error) {
+        console.error('Booking/Hiring error:', error);
+        // @ts-ignore
+        const errorMessage = error.message || 'Failed to complete the booking';
+        // Check if it's a "job already assigned" error
+        if (errorMessage.includes('already been assigned') || errorMessage.includes('already hired')) {
+          alert('This job is no longer available. Another worker may have been hired.');
+        } else {
+          alert('Error: ' + errorMessage);
+        }
+      } finally {
+        setIsProcessing(false);
+      }
     }
   }
 
@@ -466,6 +565,40 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Debug Info for Hiring Flow */}
+        {isHiringFlow && (
+          <View style={{ 
+            backgroundColor: '#E3F2FD', 
+            padding: 12, 
+            marginBottom: 12,
+            marginHorizontal: 16,
+            marginTop: 8,
+            borderRadius: 8,
+            borderLeftWidth: 4,
+            borderLeftColor: Colors.primary
+          }}>
+            <Text style={{ fontSize: 12, color: '#1565C0', fontWeight: '600', marginBottom: 4 }}>Hiring Mode: Active</Text>
+            <Text style={{ fontSize: 11, color: '#0D47A1', marginBottom: 2 }}>Bid ID: {hirableBidId}</Text>
+            <Text style={{ fontSize: 11, color: '#0D47A1', marginBottom: 2 }}>Job ID: {hirableJobId}</Text>
+            <Text style={{ fontSize: 11, color: '#0D47A1' }}>Worker: {workerName} (₹{workerAmount})</Text>
+          </View>
+        )}
+
+        {!isHiringFlow && (
+          <View style={{ 
+            backgroundColor: '#FFF3E0', 
+            padding: 12, 
+            marginBottom: 12,
+            marginHorizontal: 16,
+            marginTop: 8,
+            borderRadius: 8,
+            borderLeftWidth: 4,
+            borderLeftColor: '#FF9800'
+          }}>
+            <Text style={{ fontSize: 12, color: '#E65100', fontWeight: '600' }}>Regular Booking Mode</Text>
+          </View>
+        )}
+
         {/* Address Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -625,11 +758,15 @@ export default function CheckoutScreen({ onBack, onConfirm }: CheckoutScreenProp
           <Text style={styles.bottomTotalValue}>Rs. {total}</Text>
         </View>
         <TouchableOpacity
-          style={[styles.confirmButton, (!selectedDate || !selectedTime) && styles.confirmButtonDisabled]}
+          style={[styles.confirmButton, ((!selectedDate || !selectedTime) || isProcessing) && styles.confirmButtonDisabled]}
           onPress={handleConfirmBooking}
-          disabled={!selectedDate || !selectedTime}
+          disabled={!selectedDate || !selectedTime || isProcessing}
         >
-          <Text style={styles.confirmButtonText}>Confirm Booking</Text>
+          {isProcessing ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.confirmButtonText}>Confirm Booking</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
