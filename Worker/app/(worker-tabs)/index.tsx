@@ -153,12 +153,37 @@ export default function DashboardScreen() {
   const fetchMatchedJobs = async (workerId: string) => {
     try {
       setLoadingJobs(true);
-      // Note: Ensure your .env has the correct API URL
+      
+      // Fetch jobs feed
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker-feed/${workerId}`);
 
       if (response.ok) {
         const data = await response.json();
-        setMatchedJobs(data); // These jobs are now filtered by SKILL and LOCATION
+        
+        // Also fetch worker's active bids to filter them out
+        try {
+          const bidsResponse = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/bids/active/worker/${workerId}`);
+          const bidsData = await bidsResponse.json();
+          
+          if (bidsData.success && bidsData.bids) {
+            // Get list of job IDs the worker has already bid on
+            const bidJobIds = new Set(
+              bidsData.bids
+                .filter((bid: any) => bid.job && bid.job._id)
+                .map((bid: any) => bid.job._id.toString())
+            );
+            
+            // Filter out jobs the worker has already bid on
+            const filteredJobs = data.filter((job: any) => !bidJobIds.has(job._id.toString()));
+            setMatchedJobs(filteredJobs);
+          } else {
+            setMatchedJobs(data);
+          }
+        } catch (bidError) {
+          // If fetching bids fails, just show all jobs
+          console.error("Bid fetch error:", bidError);
+          setMatchedJobs(data);
+        }
       }
     } catch (error) {
       console.error("Fetch error:", error);
@@ -174,8 +199,12 @@ export default function DashboardScreen() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
+          // Clear all user-specific data including verification status
           await AsyncStorage.removeItem("workerName");
           await AsyncStorage.removeItem("userId");
+          await AsyncStorage.removeItem('is_verified_worker');
+          await AsyncStorage.removeItem('verification_requested');
+          await AsyncStorage.removeItem("user");
           router.replace("/auth/login");
         },
       },

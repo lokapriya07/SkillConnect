@@ -201,6 +201,7 @@ app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/jobs', require('./routes/jobRoutes'));
 app.use('/api/work', require('./routes/workRoutes'));
 app.use('/api/otp', require('./routes/otp'));
+app.use('/api/bids', require('./routes/bids'));
 
 // 6. ERROR HANDLING MIDDLEWARE
 app.use((err, req, res, next) => {

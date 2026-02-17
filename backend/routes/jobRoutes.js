@@ -271,20 +271,41 @@ router.delete('/delete-all-jobs', async (req, res) => {
 });
 router.post('/submit-bid', async (req, res) => {
     try {
-        const { jobId, workerId, bidAmount } = req.body;
+        const { jobId, workerId, bidAmount, message } = req.body;
 
         // Validation
         if (!jobId || !workerId || !bidAmount) {
             return res.status(400).json({ success: false, error: "Missing required fields" });
         }
 
+        // Get the Work profile to get the userId of the worker
+        const workProfile = await Work.findById(workerId);
+        if (!workProfile) {
+            return res.status(404).json({ success: false, error: "Worker profile not found" });
+        }
+
+        // 1. Create standalone Bid document for worker dashboard visibility
+        const Bid = require('../models/Bid');
+        const standaloneBid = await Bid.create({
+            job: jobId,
+            worker: workProfile.userId, // Use the userId from Work profile
+            amount: Number(bidAmount),
+            message: message || '',
+            status: 'pending'
+        });
+
+        console.log(`✅ Created standalone bid ${standaloneBid._id} for worker ${workProfile.userId}`);
+
+        // 2. Also add to JobRequest bids array (for backward compatibility)
         const job = await JobRequest.findByIdAndUpdate(
             jobId,
             {
                 $push: {
                     bids: {
-                        workerId, // This must be the ID from the 'Work' collection
+                        workerId, // This is the ID from the 'Work' collection
                         bidAmount: Number(bidAmount),
+                        message: message || '',
+                        status: 'pending',
                         createdAt: new Date()
                     }
                 }
@@ -292,9 +313,17 @@ router.post('/submit-bid', async (req, res) => {
             { new: true }
         );
 
-        if (!job) return res.status(404).json({ success: false, error: "Job not found" });
+        if (!job) {
+            // Rollback the standalone bid if job not found
+            await Bid.findByIdAndDelete(standaloneBid._id);
+            return res.status(404).json({ success: false, error: "Job not found" });
+        }
 
-        res.status(200).json({ success: true, job });
+        res.status(200).json({ 
+            success: true, 
+            job,
+            bidId: standaloneBid._id 
+        });
     } catch (error) {
         console.error("Bid Error:", error);
         res.status(500).json({ success: false, error: "Failed to submit bid" });
@@ -677,30 +706,55 @@ router.get('/debug/workers', async (req, res) => {
 //         res.status(500).json({ error: "Failed to accept job" });
 //     }
 // });
-// 1. GET ASSIGNED JOBS FOR WORKER (Updated to include 'completed')
+// 1. GET ASSIGNED JOBS FOR WORKER (Updated to include 'completed' and 'hired')
 router.get('/worker/:workerId/assigned-jobs', async (req, res) => {
     try {
         const { workerId } = req.params;
         
-        // Added 'completed' to the $in array to ensure finished jobs are fetched
-        const assignedJobs = await JobRequest.find({
-            'assignedWorker.workerId': workerId,
-            status: { $in: ['assigned', 'scheduled', 'in_progress', 'completed'] }
-        })
-        .populate('userId', 'name phone email address fullAddress city state')
-        .sort({ updatedAt: -1 }); // Recently updated jobs (like just completed) show first
+        // Find the Work profile to get the actual worker document ID
+        const Work = require('../models/Work');
+        const workerProfile = await Work.findOne({ userId: workerId });
+        
+        // Build query for both assigned workers AND hired workers
+        const query = {
+            $or: [
+                // Jobs where worker was directly assigned
+                {
+                    'assignedWorker.workerId': workerId,
+                    status: { $in: ['assigned', 'scheduled', 'in_progress', 'completed'] }
+                },
+                // Jobs where worker was hired through bidding
+                {
+                    'hiredWorker.workerId': workerProfile ? workerProfile._id : null,
+                    status: { $in: ['hired', 'booked', 'scheduled', 'in_progress', 'completed'] }
+                }
+            ]
+        };
 
-        const jobsWithUserDetails = assignedJobs.map(job => ({
-            ...job.toObject(),
-            userName: job.userId?.name || 'Customer',
-            userPhone: job.userId?.phone || '+91 00000 00000',
-            userEmail: job.userId?.email || '',
-            address: job.fullAddress || job.address || (job.userId?.fullAddress || job.userId?.address || '') || 'Address not available',
-            city: job.city || job.userId?.city || '',
-            state: job.state || job.userId?.state || '',
-            scheduledDate: job.scheduledDate || '',
-            scheduledTime: job.scheduledTime || ''
-        }));
+        const assignedJobs = await JobRequest.find(query)
+        .populate('userId', 'name phone email address fullAddress city state')
+        .sort({ updatedAt: -1 });
+
+        const jobsWithUserDetails = assignedJobs.map(job => {
+            const isHired = job.hiredWorker && job.hiredWorker.workerId;
+            const workerInfo = isHired ? job.hiredWorker : job.assignedWorker;
+            
+            return {
+                ...job.toObject(),
+                userName: job.userId?.name || 'Customer',
+                userPhone: job.userId?.phone || '+91 00000 00000',
+                userEmail: job.userId?.email || '',
+                address: job.fullAddress || job.address || (job.userId?.fullAddress || job.userId?.address || '') || 'Address not available',
+                city: job.city || job.userId?.city || '',
+                state: job.state || job.userId?.state || '',
+                scheduledDate: job.scheduledDate || '',
+                scheduledTime: job.scheduledTime || '',
+                // Add flag to indicate if this was a hired job
+                isHiredJob: isHired,
+                hiredAmount: isHired ? job.hiredWorker.bidAmount : null,
+                workerStatus: isHired ? 'You are hired' : 'Assigned'
+            };
+        });
 
         res.status(200).json({
             success: true,
@@ -810,6 +864,43 @@ router.get('/get-job/:jobId', async (req, res) => {
         res.status(200).json({ success: true, job: job });
     } catch (error) {
         res.status(500).json({ success: false });
+    }
+});
+
+// GET JOB STATUS - Check if job is available for hiring
+router.get('/:jobId/status', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const job = await JobRequest.findById(jobId);
+        
+        if (!job) {
+            return res.status(404).json({ 
+                success: false, 
+                available: false, 
+                message: "Job not found" 
+            });
+        }
+
+        // Check if job is still available (not hired/booked)
+        const isAvailable = !job.hiredWorker && 
+                           job.status !== 'hired' && 
+                           job.status !== 'booked' && 
+                           job.status !== 'completed' && 
+                           job.status !== 'cancelled';
+
+        res.status(200).json({
+            success: true,
+            available: isAvailable,
+            status: job.status,
+            hiredWorker: job.hiredWorker || null
+        });
+    } catch (error) {
+        console.error('Job Status Check Error:', error);
+        res.status(500).json({ 
+            success: false, 
+            available: false, 
+            message: "Failed to check job status" 
+        });
     }
 });
 

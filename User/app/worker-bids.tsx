@@ -20,6 +20,7 @@ interface Bid {
     _id: string;
     bidAmount: number;
     createdAt: string;
+    status: string;
     workerId: {
         _id: string;
         name: string;
@@ -34,9 +35,11 @@ export default function WorkerBidsScreen() {
     const { jobId } = useLocalSearchParams();
     const router = useRouter();
     const darkMode = useAppStore((state) => state.darkMode);
+    const user = useAppStore((state) => state.user);
 
     const [bids, setBids] = useState<Bid[]>([]);
     const [loading, setLoading] = useState(true);
+    const [jobStatus, setJobStatus] = useState<string | null>(null);
 
     const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -47,9 +50,18 @@ export default function WorkerBidsScreen() {
     const fetchBids = async () => {
         try {
             setLoading(true);
+            // Fetch bids
             const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/bids`);
             if (!response.ok) throw new Error('Failed to fetch bids');
             const data = await response.json();
+            
+            // Also check job status to see if already hired
+            const jobResponse = await fetch(`${API_BASE_URL}/api/jobs/get-job/${jobId}`);
+            if (jobResponse.ok) {
+                const jobData = await jobResponse.json();
+                setJobStatus(jobData.job?.status);
+            }
+            
             setBids(data);
         } catch (e) {
             Alert.alert("Error", "Could not load bids.");
@@ -58,13 +70,17 @@ export default function WorkerBidsScreen() {
         }
     };
 
+    const isJobHired = jobStatus === 'hired' || jobStatus === 'booked';
+
     const renderBidItem = ({ item }: { item: Bid }) => {
         const hasProfilePic = !!item.workerId.profilePic;
         const initials = item.workerId.name.charAt(0).toUpperCase();
+        const isHired = item.status === 'hired';
+        const isClosed = item.status === 'closed';
 
         return (
             <TouchableOpacity
-                style={styles.card}
+                style={[styles.card, (isHired || isClosed) && styles.cardInactive]}
                 activeOpacity={0.8}
                 onPress={() => router.push({
                     pathname: `/worker-profile/${item.workerId._id}` as any,
@@ -76,6 +92,8 @@ export default function WorkerBidsScreen() {
                         bidAmount: item.bidAmount.toString(),
                         skills: item.workerId.skills.join(','),
                         location: (item.workerId as any).location ? JSON.stringify((item.workerId as any).location) : '',
+                        jobId: jobId?.toString() || '',
+                        bidId: item._id?.toString() || ''
                     }
                 })}
             >
@@ -92,7 +110,7 @@ export default function WorkerBidsScreen() {
                                 <Text style={styles.initialsText}>{initials}</Text>
                             </View>
                         )}
-                        <View style={styles.onlineBadge} />
+                        {isHired && <View style={styles.hiredBadge} />}
                     </View>
 
                     <View style={styles.workerMeta}>
@@ -114,7 +132,7 @@ export default function WorkerBidsScreen() {
 
                     <View style={styles.priceSection}>
                         <Text style={styles.bidLabel}>PROPOSAL</Text>
-                        <Text style={styles.amount}>₹{item.bidAmount}</Text>
+                        <Text style={styles.amount}>Rs.{item.bidAmount}</Text>
                     </View>
                 </View>
 
@@ -129,10 +147,18 @@ export default function WorkerBidsScreen() {
                             <Text style={styles.moreSkills}>+{item.workerId.skills.length - 2} more</Text>
                         )}
                     </View>
-                    <View style={styles.viewButton}>
-                        <Text style={styles.viewButtonText}>View Profile</Text>
-                        <Ionicons name="arrow-forward" size={14} color={Colors.primary} />
-                    </View>
+                    
+                    {/* Status Display Only - No Hire Button */}
+                    {isHired ? (
+                        <View style={styles.hiredTag}>
+                            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                            <Text style={styles.hiredTagText}>Hired</Text>
+                        </View>
+                    ) : isClosed || isJobHired ? (
+                        <View style={styles.closedTag}>
+                            <Text style={styles.closedTagText}>Already Hired</Text>
+                        </View>
+                    ) : null}
                 </View>
             </TouchableOpacity>
         );
@@ -157,6 +183,13 @@ export default function WorkerBidsScreen() {
                 </TouchableOpacity>
             </View>
 
+            {isJobHired && (
+                <View style={styles.jobHiredBanner}>
+                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                    <Text style={styles.jobHiredText}>A worker has been hired for this job</Text>
+                </View>
+            )}
+
             {loading ? (
                 <View style={styles.centered}>
                     <ActivityIndicator size="large" color={Colors.primary} />
@@ -175,6 +208,7 @@ export default function WorkerBidsScreen() {
                     }
                 />
             )}
+
         </SafeAreaView>
     );
 }
@@ -194,6 +228,21 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
     headerSubtitle: { fontSize: 13, color: darkMode ? Colors.textSecondaryDark : '#888' },
     backBtn: { padding: 8 },
     refreshBtn: { padding: 8, backgroundColor: darkMode ? '#1E3A5F' : '#F0F7F0', borderRadius: 10 },
+    jobHiredBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E8F5E9',
+        padding: 12,
+        marginHorizontal: 16,
+        marginTop: 8,
+        borderRadius: 10,
+        gap: 8,
+    },
+    jobHiredText: {
+        color: '#2E7D32',
+        fontSize: 14,
+        fontWeight: '500',
+    },
     listContent: { padding: 16 },
     card: {
         backgroundColor: darkMode ? Colors.surfaceDark : '#FFF',
@@ -205,6 +254,9 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
+    },
+    cardInactive: {
+        opacity: 0.7,
     },
     cardHeader: { flexDirection: 'row', alignItems: 'center' },
     avatarContainer: { position: 'relative' },
@@ -220,16 +272,18 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
         alignItems: 'center',
     },
     initialsText: { color: '#FFF', fontSize: 22, fontWeight: 'bold' },
-    onlineBadge: {
+    hiredBadge: {
         position: 'absolute',
         bottom: -2,
         right: -2,
-        width: 14,
-        height: 14,
-        borderRadius: 7,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
         backgroundColor: '#4CAF50',
         borderWidth: 2,
         borderColor: darkMode ? Colors.surfaceDark : '#FFF',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     workerMeta: { flex: 1, marginLeft: 15 },
     workerName: { fontSize: 17, fontWeight: '700', color: darkMode ? Colors.textDark : '#1A1A1A' },
@@ -259,9 +313,32 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
     },
     skillTagText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
     moreSkills: { fontSize: 11, color: darkMode ? Colors.textSecondaryDark : '#9CA3AF' },
-    viewButton: { flexDirection: 'row', alignItems: 'center' },
-    viewButtonText: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginRight: 4 },
+    hiredTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E8F5E9',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        gap: 4,
+    },
+    hiredTagText: {
+        color: '#2E7D32',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    closedTag: {
+        backgroundColor: darkMode ? Colors.gray[700] : '#F5F5F5',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    closedTagText: {
+        color: darkMode ? Colors.textSecondaryDark : '#999',
+        fontSize: 12,
+        fontWeight: '600',
+    },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyContainer: { alignItems: 'center', marginTop: 100 },
-    emptyText: { fontSize: 16, color: darkMode ? Colors.textSecondaryDark : '#999', marginTop: 10 }
+    emptyText: { fontSize: 16, color: darkMode ? Colors.textSecondaryDark : '#999', marginTop: 10 },
 });

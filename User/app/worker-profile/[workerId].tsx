@@ -46,8 +46,22 @@ export default function WorkerDetailScreen() {
         rating,
         location,
         profilePic,
-        workerProfileId
+        workerProfileId,
+        jobId,
+        bidId
     } = params;
+
+    // Debug logging
+    React.useMemo(() => {
+        console.log('[WORKER PROFILE] Route params:', {
+            name,
+            jobId,
+            bidId,
+            bidAmount,
+            workerId: params.workerId,
+            workerProfileId
+        });
+    }, [params]);
 
     // Get user data from store
     useEffect(() => {
@@ -58,14 +72,13 @@ export default function WorkerDetailScreen() {
         const userState = useAppStore.getState();
         if (userState.user) setUserData(userState.user);
 
-        if (workerProfileId) {
-            setWorkerId(workerProfileId as string);
-        } else if (params.workerId) {
+        // Handle workerId from dynamic route parameter [workerId]
+        if (params.workerId) {
             setWorkerId(params.workerId as string);
         }
 
         return () => unsubscribe();
-    }, [workerProfileId, params.workerId]);
+    }, [params.workerId]);
 
     const getConversationId = useCallback(() => {
         if (!userData?._id && !userData?.id || !workerId) return null;
@@ -221,6 +234,22 @@ export default function WorkerDetailScreen() {
 
                 {/* Content */}
                 <View style={styles.content}>
+                    {/* Debug: Show if hiring context is available */}
+                    {jobId && bidId && (
+                        <View style={{
+                            backgroundColor: '#E3F2FD',
+                            padding: 10,
+                            marginBottom: 16,
+                            borderRadius: 8,
+                            borderLeftWidth: 4,
+                            borderLeftColor: Colors.primary,
+                            marginHorizontal: 0
+                        }}>
+                            <Text style={{ fontSize: 11, color: '#1565C0', fontWeight: '600' }}>From Job Application</Text>
+                            <Text style={{ fontSize: 10, color: '#0D47A1', marginTop: 2 }}>Job: {(Array.isArray(jobId) ? jobId[0] : jobId)?.substring(0, 8)}... | Bid: {(Array.isArray(bidId) ? bidId[0] : bidId)?.substring(0, 8)}...</Text>
+                        </View>
+                    )}
+
                     <View style={styles.statsRow}>
                         <View style={styles.statCard}>
                             <Text style={styles.statLabel}>BID RATE</Text>
@@ -271,16 +300,35 @@ export default function WorkerDetailScreen() {
 
                 <TouchableOpacity
                     style={styles.primaryBtn}
-                    onPress={() => {
-                        router.push({
-                            pathname: '/checkout',
-                            params: {
-                                workerId: workerId,
-                                workerName: name,
-                                amount: bidAmount,
-                                expertise: expertise
+                    onPress={async () => {
+                        if (!jobId || !bidId || !workerId) {
+                            Alert.alert('Error', 'Missing job or bid information.');
+                            return;
+                        }
+                        try {
+                            // Check job status before navigating
+                            const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+                            const jobStatusUrl = `${API_BASE_URL}/api/jobs/${jobId}/status`;
+                            const statusRes = await fetch(jobStatusUrl);
+                            const statusData = await statusRes.json();
+                            if (!statusRes.ok || !statusData.available) {
+                                Alert.alert('Job Unavailable', 'This job has already been assigned to another worker.');
+                                return;
                             }
-                        });
+                            router.push({
+                                pathname: '/checkout',
+                                params: {
+                                    workerId: workerId,
+                                    workerName: name,
+                                    amount: bidAmount,
+                                    expertise: expertise,
+                                    jobId: jobId,
+                                    bidId: bidId
+                                }
+                            });
+                        } catch (err) {
+                            Alert.alert('Error', 'Could not verify job status. Please try again.');
+                        }
                     }}
                 >
                     <Text style={styles.primaryBtnText}>Hire {name}</Text>

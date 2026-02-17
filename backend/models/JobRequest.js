@@ -20,6 +20,7 @@ const jobRequestSchema = new mongoose.Schema(
       workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Work' },
       bidAmount: Number,
       message: String,
+      status: { type: String, enum: ['pending', 'hired', 'closed'], default: 'pending' },
       createdAt: { type: Date, default: Date.now }
     }],
 
@@ -31,9 +32,19 @@ const jobRequestSchema = new mongoose.Schema(
       assignedAt: { type: Date, default: Date.now }
     },
 
+    // Hired worker from bid (for bidding workflow)
+    hiredWorker: {
+      workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Work' },
+      workerName: String,
+      workerProfilePic: String,
+      bidId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bid' },
+      bidAmount: Number,
+      hiredAt: { type: Date, default: Date.now }
+    },
+
     status: {
       type: String,
-      enum: ['finding_workers', 'bidding', 'assigned', 'scheduled', 'in_progress', 'completed', 'cancelled'],
+      enum: ['finding_workers', 'bidding', 'assigned', 'scheduled', 'in_progress', 'completed', 'cancelled', 'booked', 'hired'],
       default: 'finding_workers'
     },
 
@@ -94,7 +105,7 @@ const jobRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✅ REQUIRED
+// REQUIRED
 jobRequestSchema.index({ location: '2dsphere' });
 
 module.exports =
