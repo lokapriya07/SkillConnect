@@ -25,7 +25,7 @@ export default function BookingDetailsScreen() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>()
   const darkMode = useAppStore(state => state.darkMode)
   const storeBooking = useAppStore(s => s.bookings.find(b => b.id === bookingId))
-  
+
   const [liveJob, setLiveJob] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
@@ -34,9 +34,12 @@ export default function BookingDetailsScreen() {
 
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/worker/job/${bookingId}`);
+        // Strip the 'hired_' prefix that bookings-screen adds to distinguish hired jobs in the list
+        const cleanId = typeof bookingId === 'string' ? bookingId.replace(/^hired_/, '') : bookingId;
+        // Use the correct endpoint that actually exists in the backend
+        const res = await fetch(`${API_URL}/api/jobs/get-job/${cleanId}`);
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.job) {
           setLiveJob(data.job);
           setIsSyncing(true);
         }
@@ -48,17 +51,24 @@ export default function BookingDetailsScreen() {
   }, [bookingId]);
 
   const displayData = liveJob || storeBooking || {};
-  const currentStatus = displayData?.status || 'assigned';
+  // Handle both 'assigned' and 'hired' statuses as step 0 (Order Accepted)
+  const rawStatus = displayData?.status || 'assigned';
+  const currentStatus = rawStatus === 'hired' || rawStatus === 'booked' ? 'assigned' : rawStatus;
   const currentStepIndex = STATUS_STEPS.findIndex(s => s.key === currentStatus);
-  const workerName = displayData?.assignedWorker?.name || "Professional";
+  // Prefer hiredWorker name, then assignedWorker name
+  const workerName = displayData?.hiredWorker?.workerName ||
+    displayData?.assignedWorker?.workerName ||
+    displayData?.assignedWorker?.name ||
+    "Professional";
   const initials = workerName.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+  const totalDisplay = displayData?.totalAmount || displayData?.budget || displayData?.total || '0';
 
   const styles = getStyles(darkMode);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} />
-      
+
       {/* 1. SEPARATE HEADER (Fixed Overlap) */}
       <SafeAreaView style={styles.headerSafeArea}>
         <View style={styles.navHeader}>
@@ -78,7 +88,7 @@ export default function BookingDetailsScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
@@ -104,7 +114,7 @@ export default function BookingDetailsScreen() {
 
         {/* 3. CONTENT SECTION (Floating up slightly over map) */}
         <View style={styles.contentContainer}>
-          
+
           {/* STEPPER */}
           <View style={styles.card}>
             <Text style={styles.cardHeader}>ACTIVITY TIMELINE</Text>
@@ -115,7 +125,7 @@ export default function BookingDetailsScreen() {
                 <View key={step.key} style={styles.stepRow}>
                   <View style={styles.indicatorCol}>
                     <View style={[styles.stepCircle, isActive && styles.circleActive]}>
-                       <Ionicons name={step.icon as any} size={14} color={isActive ? "white" : "#94A3B8"} />
+                      <Ionicons name={step.icon as any} size={14} color={isActive ? "white" : "#94A3B8"} />
                     </View>
                     {index !== 3 && <View style={[styles.stepLine, isActive && styles.lineActive]} />}
                   </View>
@@ -128,20 +138,20 @@ export default function BookingDetailsScreen() {
             })}
           </View>
 
-          {/* WORKER BADGE */}
-          {displayData?.assignedWorker && (
+          {/* WORKER BADGE - shows for both assignedWorker and hiredWorker */}
+          {(displayData?.assignedWorker || displayData?.hiredWorker) && (
             <View style={styles.workerBadgeCard}>
               <View style={styles.initialsCircle}>
-                 <Text style={styles.initialsText}>{initials}</Text>
-                 <View style={styles.verifiedIcon}>
-                    <Ionicons name="checkmark" size={10} color="white" />
-                 </View>
+                <Text style={styles.initialsText}>{initials}</Text>
+                <View style={styles.verifiedIcon}>
+                  <Ionicons name="checkmark" size={10} color="white" />
+                </View>
               </View>
               <View style={styles.workerInfo}>
                 <Text style={styles.workerNameText}>{workerName}</Text>
                 <View style={styles.ratingRow}>
-                   <Ionicons name="star" size={12} color="#F59E0B" />
-                   <Text style={styles.ratingText}> 4.9 • Verified Partner</Text>
+                  <Ionicons name="star" size={12} color="#F59E0B" />
+                  <Text style={styles.ratingText}> 4.9 • Verified Partner</Text>
                 </View>
               </View>
               <TouchableOpacity style={styles.callFab}>
@@ -152,11 +162,11 @@ export default function BookingDetailsScreen() {
 
           {/* PAYMENT SUMMARY */}
           <View style={styles.card}>
-              <View style={styles.paymentRow}>
-                 <Text style={styles.totalLabel}>Grand Total</Text>
-                 <Text style={styles.totalVal}>₹{displayData?.total || '0'}</Text>
-              </View>
-              <Text style={styles.paymentSub}>Include all taxes and service fees</Text>
+            <View style={styles.paymentRow}>
+              <Text style={styles.totalLabel}>Grand Total</Text>
+              <Text style={styles.totalVal}>₹{totalDisplay}</Text>
+            </View>
+            <Text style={styles.paymentSub}>Include all taxes and service fees</Text>
           </View>
         </View>
       </ScrollView>
@@ -173,7 +183,7 @@ export default function BookingDetailsScreen() {
 
 const getStyles = (darkMode: boolean) => StyleSheet.create({
   container: { flex: 1, backgroundColor: darkMode ? "#000" : "#F8FAFC" },
-  
+
   // Header Fix
   headerSafeArea: { backgroundColor: darkMode ? "#000" : "#FFF", zIndex: 10 },
   navHeader: {
@@ -196,7 +206,7 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
   contentContainer: { marginTop: -20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: darkMode ? "#000" : "#F8FAFC", paddingTop: 10 },
   card: { backgroundColor: darkMode ? "#111" : "#FFF", marginHorizontal: 16, marginBottom: 16, borderRadius: 24, padding: 20, elevation: 1 },
   cardHeader: { fontSize: 11, fontWeight: '800', color: '#94A3B8', marginBottom: 20, letterSpacing: 1 },
-  
+
   stepper: { marginLeft: 5 },
   stepRow: { flexDirection: 'row', minHeight: 65 },
   indicatorCol: { alignItems: 'center', marginRight: 16 },
@@ -204,7 +214,7 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
   circleActive: { backgroundColor: Colors.primary },
   stepLine: { width: 2, flex: 1, backgroundColor: '#F1F5F9', marginVertical: -4 },
   lineActive: { backgroundColor: Colors.primary },
-  
+
   stepTextCol: { paddingTop: 6 },
   stepLabel: { fontSize: 15, fontWeight: '700', color: '#94A3B8' },
   labelActive: { color: darkMode ? "#FFF" : "#1E293B" },

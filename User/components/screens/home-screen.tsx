@@ -92,7 +92,7 @@
 //   const featuredServices = getFeaturedServices()
 //   const popularServices = getPopularServices()
 //   const cartCount = getCartCount()
-  
+
 //   // Theme colors
 //   const themeColors = darkMode ? Colors.dark : Colors.light
 //   const backgroundColor = darkMode ? Colors.backgroundDark : Colors.background
@@ -123,7 +123,7 @@
 // useEffect(() => {
 //   const interval = setInterval(() => {
 //     let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
-    
+
 //     flatListRef.current?.scrollToIndex({ 
 //       index: nextIndex, 
 //       animated: true 
@@ -131,7 +131,7 @@
 
 //     // If you need to update the activeIndex state as well:
 //     // setActiveIndex(nextIndex); 
-    
+
 //   }, 3500);
 
 //   // The cleanup function must be INSIDE the useEffect
@@ -497,7 +497,7 @@
 //         <View style={styles.section}>
 //           <View style={styles.sectionHeader}>
 //             <Text style={styles.sectionTitle}>Featured Offers</Text>
-            
+
 //             <TouchableOpacity
 //               style={styles.seeAllBtn}
 //               onPress={() => router.push("/featured-services")}
@@ -562,7 +562,7 @@
 //               <Text style={styles.seeAllText}>See all</Text>
 //               <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
 //             </TouchableOpacity>
-            
+
 //           </View>
 //           <View style={styles.popularList}>
 //             {popularServices.slice(0, 4).map((service) => (
@@ -634,19 +634,21 @@ import { categories, getFeaturedServices, getPopularServices } from "@/lib/servi
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
-
-import React, { useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Dimensions,
   FlatList,
   Image,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  ImageBackground, 
+  ImageBackground,
   TouchableOpacity,
   View,
 } from "react-native"
@@ -676,7 +678,7 @@ const BANNERS = [
     subtitle: 'Flat 50% Off on all Spa Services',
     offer: 'UPTO 50% OFF',
     searchHint: 'Home Cleaning',
-    color: '#FF9933' 
+    color: '#FF9933'
   },
   {
     id: '2',
@@ -687,7 +689,7 @@ const BANNERS = [
     subtitle: 'Expert deep cleaning for your home',
     offer: 'Starting @ ₹299',
     searchHint: 'Kitchen Cleaning',
-    color: '#000080' 
+    color: '#000080'
   },
   {
     id: '3',
@@ -698,7 +700,7 @@ const BANNERS = [
     subtitle: 'Top rated stylists at your doorstep',
     offer: '20% OFF FIRST VISIT',
     searchHint: 'Salon for Men',
-    color: '#128C7E' 
+    color: '#128C7E'
   },
 ];
 
@@ -723,7 +725,41 @@ export default function HomeScreen() {
   const featuredServices = getFeaturedServices()
   const popularServices = getPopularServices()
   const cartCount = getCartCount()
-  
+
+  // Filter out hired/assigned jobs from home page - only show jobs that are still in finding/bidding stage
+  const visibleJobs = activeJobs.filter(job => {
+    const status = job.status?.toLowerCase();
+    return !['hired', 'assigned', 'booked', 'in_progress', 'completed', 'cancelled'].includes(status);
+  });
+
+  // --- Notification State ---
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotiPanel, setShowNotiPanel] = useState(false);
+  const notiPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const API_URL_NOTI = process.env.EXPO_PUBLIC_API_URL;
+
+  const fetchUserNotifications = useCallback(async () => {
+    try {
+      const userStr = await AsyncStorage.getItem('user');
+      if (!userStr) return;
+      const userObj = JSON.parse(userStr);
+      const userId = userObj._id || userObj.id;
+      if (!userId) return;
+      const res = await fetch(`${API_URL_NOTI}/api/notifications/${userId}`);
+      const data = await res.json();
+      if (data.success) setNotifications(data.notifications);
+    } catch (e) { /* silent fail */ }
+  }, []);
+
+  const markNotiRead = async (id: string) => {
+    try {
+      await fetch(`${API_URL_NOTI}/api/notifications/${id}/read`, { method: 'PUT' });
+      setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
+    } catch (e) { }
+  };
+
+  const unreadNotiCount = notifications.filter(n => !n.isRead).length;
+
   // Theme colors
   const themeColors = darkMode ? Colors.dark : Colors.light
   const backgroundColor = darkMode ? Colors.backgroundDark : Colors.background
@@ -741,19 +777,26 @@ export default function HomeScreen() {
     }
   }, [user]);
 
+  // Poll user notifications every 10 seconds
   useEffect(() => {
-  const interval = setInterval(() => {
-    let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
-    
-    flatListRef.current?.scrollToIndex({ 
-      index: nextIndex, 
-      animated: true 
-    });
-    
-  }, 3500);
+    fetchUserNotifications();
+    notiPollingRef.current = setInterval(fetchUserNotifications, 10000);
+    return () => { if (notiPollingRef.current) clearInterval(notiPollingRef.current); };
+  }, [fetchUserNotifications]);
 
-  return () => clearInterval(interval);
-}, [activeIndex]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
+
+      flatListRef.current?.scrollToIndex({
+        index: nextIndex,
+        animated: true
+      });
+
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [activeIndex]);
 
 
   const handleScroll = (event: any) => {
@@ -838,7 +881,7 @@ export default function HomeScreen() {
       position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around",
       backgroundColor: surfaceColor, paddingVertical: 12, borderTopWidth: 1, borderTopColor: borderColor,
       paddingBottom: Platform.OS === "ios" ? 24 : 12, elevation: 20
-    }, 
+    },
     navItem: { alignItems: "center", justifyContent: "center" },
     navText: { fontSize: 10, marginTop: 4, color: secondaryTextColor, fontWeight: "500" },
     cartBadge: { position: "absolute", top: -5, right: -8, backgroundColor: Colors.primary, borderRadius: 8, width: 16, height: 16, justifyContent: "center", alignItems: "center" },
@@ -927,6 +970,19 @@ export default function HomeScreen() {
     trackerFooter: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: borderColor, paddingTop: 10, marginTop: 5 },
     actionText: { color: Colors.primary, fontWeight: '700' },
 
+    notiBadge: { position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#ef4444', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
+    notiBadgeText: { color: '#fff', fontSize: 8, fontWeight: '800' },
+    notiBtn: { position: 'absolute', top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 16, right: 16, width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+    notiOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: Platform.OS === 'ios' ? 100 : 80, paddingRight: 12 },
+    notiPanelContainer: { width: 300, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 16 },
+    notiPanelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+    notiPanelTitle: { fontWeight: '700', fontSize: 15, color: '#111827' },
+    notiItem: { flexDirection: 'row', padding: 14, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
+    notiDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#2563eb', marginTop: 5, marginRight: 10 },
+    notiTitle: { fontSize: 14, color: '#1f2937', marginBottom: 2 },
+    notiMsg: { fontSize: 12, color: '#6b7280', lineHeight: 18 },
+    notiTime: { fontSize: 11, color: '#9ca3af', marginTop: 4 },
+
     section: { padding: 20 },
     sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: textColor },
     grid: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -958,18 +1014,70 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* Notification Bell in Header */}
+        <TouchableOpacity
+          style={styles.notiBtn}
+          onPress={() => { setShowNotiPanel(true); fetchUserNotifications(); }}
+        >
+          <Ionicons name="notifications" size={22} color="#fff" />
+          {unreadNotiCount > 0 && (
+            <View style={styles.notiBadge}>
+              <Text style={styles.notiBadgeText}>{unreadNotiCount > 9 ? '9+' : unreadNotiCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.searchBar} onPress={goToSearch} activeOpacity={0.9}>
           <Ionicons name="search" size={20} color="rgba(255,255,255,0.7)" />
           <Text style={styles.searchText}>Search for '{BANNERS[activeIndex].searchHint}'</Text>
         </TouchableOpacity>
       </ImageBackground>
 
+      {/* Notification Panel Modal */}
+      <Modal visible={showNotiPanel} transparent animationType="fade" onRequestClose={() => setShowNotiPanel(false)}>
+        <Pressable style={styles.notiOverlay} onPress={() => setShowNotiPanel(false)}>
+          <View style={styles.notiPanelContainer}>
+            <View style={styles.notiPanelHeader}>
+              <Text style={styles.notiPanelTitle}>Notifications</Text>
+              <TouchableOpacity onPress={() => setShowNotiPanel(false)}>
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 320 }} bounces={false}>
+              {notifications.length === 0 ? (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Ionicons name="notifications-outline" size={36} color="#d1d5db" />
+                  <Text style={{ color: '#9ca3af', marginTop: 8 }}>No notifications yet</Text>
+                </View>
+              ) : (
+                notifications.map(item => (
+                  <TouchableOpacity
+                    key={item._id}
+                    style={[styles.notiItem, { backgroundColor: item.isRead ? '#fff' : '#eff6ff' }]}
+                    onPress={() => markNotiRead(item._id)}
+                  >
+                    {!item.isRead && <View style={styles.notiDot} />}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.notiTitle, { fontWeight: item.isRead ? '500' : '700' }]}>{item.title}</Text>
+                      <Text style={styles.notiMsg}>{item.message}</Text>
+                      <Text style={styles.notiTime}>
+                        {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
-        {activeJobs && activeJobs.length > 0 && activeJobs.map((job) => {
+        {visibleJobs && visibleJobs.length > 0 && visibleJobs.map((job) => {
           const stableId = job._id || job.id;
 
           return (
@@ -1053,8 +1161,8 @@ export default function HomeScreen() {
                       </View>
                       <Text style={styles.bannerTitle}>{item.title}</Text>
                       <Text style={styles.bannerSubtitle}>{formattedSubtitle}</Text>
-                      <TouchableOpacity 
-                        style={styles.bookNowBtn} 
+                      <TouchableOpacity
+                        style={styles.bookNowBtn}
                         onPress={() => {
                           if (item.serviceId) {
                             router.push(`/service/${item.serviceId}`);
@@ -1075,15 +1183,15 @@ export default function HomeScreen() {
           />
           <View style={styles.pagination}>
             {BANNERS.map((_, i) => (
-              <View 
-                key={i} 
+              <View
+                key={i}
                 style={[
-                  styles.dot, 
-                  { 
+                  styles.dot,
+                  {
                     backgroundColor: activeIndex === i ? Colors.primary : '#D1D1D1',
-                    width: activeIndex === i ? 20 : 8 
+                    width: activeIndex === i ? 20 : 8
                   }
-                ]} 
+                ]}
               />
             ))}
           </View>

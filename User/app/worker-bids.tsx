@@ -18,6 +18,7 @@ import { useAppStore } from '@/lib/store';
 
 interface Bid {
     _id: string;
+    standaloneBidId?: string; // Added by backend: the standalone Bid collection _id used for hiring
     bidAmount: number;
     createdAt: string;
     status: string;
@@ -35,7 +36,6 @@ export default function WorkerBidsScreen() {
     const { jobId } = useLocalSearchParams();
     const router = useRouter();
     const darkMode = useAppStore((state) => state.darkMode);
-    const user = useAppStore((state) => state.user);
 
     const [bids, setBids] = useState<Bid[]>([]);
     const [loading, setLoading] = useState(true);
@@ -54,14 +54,14 @@ export default function WorkerBidsScreen() {
             const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/bids`);
             if (!response.ok) throw new Error('Failed to fetch bids');
             const data = await response.json();
-            
+
             // Also check job status to see if already hired
             const jobResponse = await fetch(`${API_BASE_URL}/api/jobs/get-job/${jobId}`);
             if (jobResponse.ok) {
                 const jobData = await jobResponse.json();
                 setJobStatus(jobData.job?.status);
             }
-            
+
             setBids(data);
         } catch (e) {
             Alert.alert("Error", "Could not load bids.");
@@ -93,7 +93,7 @@ export default function WorkerBidsScreen() {
                         skills: item.workerId.skills.join(','),
                         location: (item.workerId as any).location ? JSON.stringify((item.workerId as any).location) : '',
                         jobId: jobId?.toString() || '',
-                        bidId: item._id?.toString() || ''
+                        bidId: item.standaloneBidId || item._id?.toString() || ''
                     }
                 })}
             >
@@ -147,8 +147,8 @@ export default function WorkerBidsScreen() {
                             <Text style={styles.moreSkills}>+{item.workerId.skills.length - 2} more</Text>
                         )}
                     </View>
-                    
-                    {/* Status Display Only - No Hire Button */}
+
+                    {/* Hire Button or Status Display */}
                     {isHired ? (
                         <View style={styles.hiredTag}>
                             <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
@@ -158,7 +158,11 @@ export default function WorkerBidsScreen() {
                         <View style={styles.closedTag}>
                             <Text style={styles.closedTagText}>Already Hired</Text>
                         </View>
-                    ) : null}
+                    ) : (
+                        <View style={styles.viewProfileTag}>
+                            <Text style={styles.viewProfileTagText}>Tap to View & Hire</Text>
+                        </View>
+                    )}
                 </View>
             </TouchableOpacity>
         );
@@ -335,6 +339,47 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
     },
     closedTagText: {
         color: darkMode ? Colors.textSecondaryDark : '#999',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    hireButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.primary,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        gap: 4,
+    },
+    hireButtonText: {
+        color: '#FFF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    viewProfileButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: darkMode ? '#1E3A5F' : '#E3F2FD',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        gap: 4,
+        borderWidth: 1,
+        borderColor: Colors.primary,
+    },
+    viewProfileText: {
+        color: Colors.primary,
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    viewProfileTag: {
+        backgroundColor: darkMode ? '#1E3A5F' : '#E3F2FD',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    viewProfileTagText: {
+        color: Colors.primary,
         fontSize: 12,
         fontWeight: '600',
     },

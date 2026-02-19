@@ -41,7 +41,7 @@
 
 //         await newJob.save();
 //         console.log("✅ Job Saved to DB:", newJob._id);
-        
+
 //         res.status(201).json({ message: "Success", job: newJob });
 //     } catch (error) {
 //         console.error("❌ Backend Error:", error);
@@ -56,7 +56,7 @@
 //         // .find() gets all documents
 //         // .sort({ createdAt: -1 }) puts the newest requests at the top
 //         const jobs = await JobRequest.find().sort({ createdAt: -1 });
-        
+
 //         console.log(`✅ Fetched ${jobs.length} jobs`);
 //         res.status(200).json(jobs);
 //     } catch (error) {
@@ -76,6 +76,7 @@ const JobRequest = require('../models/JobRequest');
 const Work = require('../models/Work');
 // ✅ Import the new multimodal function name
 const { extractSkillsFromMultimodal } = require('../utils/aiExtractor');
+const { sendPushNotification } = require('./notificationRoutes');
 
 const storage = multer.diskStorage({
     destination: 'uploads/',
@@ -113,9 +114,9 @@ router.post(
             // ✅ Call the new function name with ALL 3 inputs
             const rawSkills = await extractSkillsFromMultimodal(description, audioPath, imagePath);
             const skillsRequired = rawSkills.map(s => s.toLowerCase().trim());
-            
+
             console.log(`✅ Job uploaded by user ${userId}`);
-            
+
             const job = await JobRequest.create({
                 description: description || "Voice/Image Request",
                 budget,
@@ -166,8 +167,8 @@ router.get('/worker-feed/:workerId', async (req, res) => {
             // Filter jobs where the required skills overlap with worker's skills
             // skillsRequired: { $in: workerSkills }
             skillsRequired: {
-    $in: workerSkills.map(skill => new RegExp(skill, 'i'))
-}
+                $in: workerSkills.map(skill => new RegExp(skill, 'i'))
+            }
 
         };
 
@@ -186,7 +187,7 @@ router.get('/worker-feed/:workerId', async (req, res) => {
 
         let jobs = await JobRequest.find(query).sort({ createdAt: -1 });
         console.log("Worker skills:", workerSkills);
-console.log("Jobs found:", jobs.length);
+        console.log("Jobs found:", jobs.length);
 
 
         // FALLBACK: If no jobs found nearby with those specific skills, 
@@ -213,17 +214,24 @@ router.get('/user/:userId', async (req, res) => {
 
         // Validate userId
         if (!userId || userId === 'undefined' || userId === 'null') {
-            return res.status(400).json({ 
-                success: false, 
-                error: "Invalid user ID" 
+            return res.status(400).json({
+                success: false,
+                error: "Invalid user ID"
             });
         }
 
         // Find jobs where the userId matches
-        // We filter for statuses that are not 'completed' or 'cancelled'
+        // Fetch all relevant jobs for the user
         const activeJobs = await JobRequest.find({
             userId: userId,
-            status: { $in: ['finding_workers', 'bidding', 'scheduled', 'tracking', 'finding'] }
+            status: {
+                $in: [
+                    'finding_workers', 'bidding', 'finding', // Search phases
+                    'assigned', 'hired', 'booked',          // Assigned phases
+                    'scheduled', 'in_progress',            // Active phases
+                    'completed', 'tracking'                 // Finished/Legacy phases
+                ]
+            }
         }).sort({ createdAt: -1 }); // Newest first
 
         res.status(200).json({
@@ -319,10 +327,10 @@ router.post('/submit-bid', async (req, res) => {
             return res.status(404).json({ success: false, error: "Job not found" });
         }
 
-        res.status(200).json({ 
-            success: true, 
+        res.status(200).json({
+            success: true,
             job,
-            bidId: standaloneBid._id 
+            bidId: standaloneBid._id
         });
     } catch (error) {
         console.error("Bid Error:", error);
@@ -333,19 +341,47 @@ router.post('/submit-bid', async (req, res) => {
 // GET BIDS (User side)
 router.get('/:jobId/bids', async (req, res) => {
     try {
+        const Bid = require('../models/Bid');
         const job = await JobRequest.findById(req.params.jobId)
             .populate({
                 path: 'bids.workerId',
                 model: 'Work', // Explicitly tell Mongoose which model to use
-                select: 'name profilePic expertise skills rating location'
+                select: 'name profilePic expertise skills rating location userId'
             });
 
         if (!job) return res.status(404).json({ error: "Job not found" });
 
         // Filter out any bids where the worker profile might have been deleted
         const validBids = job.bids.filter(bid => bid.workerId !== null);
-        res.status(200).json(validBids);
+
+        // Cross-reference with standalone Bid collection to get the correct _id
+        // The hire endpoint uses Bid.findById(bidId), so we need the standalone Bid _id,
+        // NOT the embedded subdocument _id from JobRequest.bids
+        const enrichedBids = await Promise.all(validBids.map(async (bid) => {
+            const bidObj = bid.toObject();
+            try {
+                // The standalone Bid stores worker as userId (workProfile.userId)
+                const workerUserId = bid.workerId?.userId;
+                if (workerUserId) {
+                    const standaloneBid = await Bid.findOne({
+                        job: req.params.jobId,
+                        worker: workerUserId,
+                        status: { $in: ['pending', 'hired', 'closed'] }
+                    }).sort({ createdAt: -1 });
+
+                    if (standaloneBid) {
+                        bidObj.standaloneBidId = standaloneBid._id.toString();
+                    }
+                }
+            } catch (e) {
+                console.error('[GET BIDS] Error cross-referencing standalone bid:', e.message);
+            }
+            return bidObj;
+        }));
+
+        res.status(200).json(enrichedBids);
     } catch (error) {
+        console.error('Failed to fetch bids:', error);
         res.status(500).json({ error: "Failed to fetch bids" });
     }
 });
@@ -370,13 +406,13 @@ router.get('/:jobId/chat/:user1/:user2', async (req, res) => {
 // ASSIGN WORKER - Find and assign best matching worker based on distance, ratings, and skills
 router.post('/assign-worker', async (req, res) => {
     try {
-        const { 
-            serviceCategory, 
+        const {
+            serviceCategory,
             serviceName,
-            userId, 
-            userLatitude, 
-            userLongitude, 
-            requiredSkills 
+            userId,
+            userLatitude,
+            userLongitude,
+            requiredSkills
         } = req.body;
 
         if (!userLatitude || !userLongitude) {
@@ -401,12 +437,12 @@ router.post('/assign-worker', async (req, res) => {
 
         // Get the normalized service category
         const normalizedCategory = serviceCategory?.toLowerCase().replace(/\s+/g, '');
-        
+
         // Try different ways to match the category
-        let searchSkills = categorySkillsMap[normalizedCategory] || 
-                          categorySkillsMap[serviceCategory?.toLowerCase()] || 
-                          categorySkillsMap['default'];
-        
+        let searchSkills = categorySkillsMap[normalizedCategory] ||
+            categorySkillsMap[serviceCategory?.toLowerCase()] ||
+            categorySkillsMap['default'];
+
         // If still no skills found, try to extract from service name
         if (searchSkills === categorySkillsMap['default'] && requiredSkills && requiredSkills.length > 0) {
             searchSkills = requiredSkills.map(s => s.toLowerCase());
@@ -421,7 +457,7 @@ router.post('/assign-worker', async (req, res) => {
                 // Also match if the skill contains the category name
                 { skills: { $in: [new RegExp(serviceCategory, 'i')] } },
                 // For salon services, also match barber skills
-                ...(serviceCategory?.toLowerCase().includes('salon') || serviceCategory?.toLowerCase().includes('haircut') ? 
+                ...(serviceCategory?.toLowerCase().includes('salon') || serviceCategory?.toLowerCase().includes('haircut') ?
                     [{ skills: { $in: [/barber/i, /hair/i, /styling/i] } }] : [])
             ],
             verificationStatus: 'verified' // Only show verified workers
@@ -455,8 +491,8 @@ router.post('/assign-worker', async (req, res) => {
                 ],
                 verificationStatus: 'verified'
             })
-            .sort({ rating: -1 })
-            .limit(20);
+                .sort({ rating: -1 })
+                .limit(20);
         }
 
         // Last resort: show any available workers nearby (regardless of verification)
@@ -464,8 +500,8 @@ router.post('/assign-worker', async (req, res) => {
             workers = await Work.find({
                 isAvailable: true,
             })
-            .sort({ rating: -1 })
-            .limit(10);
+                .sort({ rating: -1 })
+                .limit(10);
         }
 
         // If still no workers found, return a more informative message
@@ -489,16 +525,16 @@ router.post('/assign-worker', async (req, res) => {
         // 3. Distance (30% weight - closer is better)
         const scoredWorkers = workers.map(worker => {
             const workerSkills = (worker.skills || []).map(s => s.toLowerCase());
-            
+
             // Calculate skill match score
-            const matchedSkills = searchSkills.filter(s => 
+            const matchedSkills = searchSkills.filter(s =>
                 workerSkills.some(ws => ws.includes(s.toLowerCase()) || s.toLowerCase().includes(ws))
             );
             const skillScore = matchedSkills.length / Math.max(searchSkills.length, 1);
-            
+
             // Normalize rating (assuming max 5)
             const ratingScore = (worker.rating || 0) / 5;
-            
+
             // Calculate distance score
             let distanceScore = 1;
             if (worker.location && worker.location.coordinates && userLatitude && userLongitude) {
@@ -511,10 +547,10 @@ router.post('/assign-worker', async (req, res) => {
                 // Closer = higher score, max distance 50km
                 distanceScore = Math.max(0, 1 - (distance / 50));
             }
-            
+
             // Calculate final score
             const totalScore = (skillScore * 0.4) + (ratingScore * 0.3) + (distanceScore * 0.3);
-            
+
             return {
                 ...worker.toObject(),
                 skillMatch: matchedSkills,
@@ -532,7 +568,7 @@ router.post('/assign-worker', async (req, res) => {
         const bestWorker = scoredWorkers[0];
 
         if (!bestWorker) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 error: "No available workers found",
                 message: "We couldn't find any available workers for your service. Please try again later."
             });
@@ -541,7 +577,7 @@ router.post('/assign-worker', async (req, res) => {
         // Create a job request for the assigned worker
         // Get the total amount from the request body (sent from frontend for predefined services)
         const totalAmountFromRequest = req.body.totalAmount || req.body.price || 0;
-        
+
         const jobRequest = await JobRequest.create({
             userId: userId,
             serviceName: serviceName || serviceCategory || 'Service',
@@ -568,6 +604,15 @@ router.post('/assign-worker', async (req, res) => {
         });
 
         console.log('✅ Job created with assigned worker:', jobRequest._id);
+
+        // --- NOTIFY WORKER ---
+        await sendPushNotification(
+            bestWorker.userId, // Worker's User ID
+            "🎉 You've been hired!",
+            `New job for ${serviceName || 'Service'}: ₹${totalAmountFromRequest}`,
+            { type: 'hired', jobId: jobRequest._id },
+            'Work'
+        );
 
         res.status(200).json({
             success: true,
@@ -600,17 +645,17 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
     const R = 6371; // Radius of the earth in km
     const dLat = deg2rad(lat2 - lat1);
     const dLon = deg2rad(lon2 - lon1);
-    const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-        Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const d = R * c; // Distance in km
     return d;
 }
 
 function deg2rad(deg) {
-    return deg * (Math.PI/180);
+    return deg * (Math.PI / 180);
 }
 
 // DEBUG ENDPOINT - Get all workers to check database
@@ -641,7 +686,7 @@ router.get('/debug/workers', async (req, res) => {
 // router.get('/worker/:workerId/assigned-jobs', async (req, res) => {
 //     try {
 //         const { workerId } = req.params;
-        
+
 //         // Find jobs assigned to this worker and populate user details
 //         const assignedJobs = await JobRequest.find({
 //             'assignedWorker.workerId': workerId,
@@ -680,13 +725,13 @@ router.get('/debug/workers', async (req, res) => {
 // router.put('/worker/:jobId/accept', async (req, res) => {
 //     try {
 //         const { jobId } = req.params;
-        
+
 //         const job = await JobRequest.findById(jobId);
-        
+
 //         if (!job) {
 //             return res.status(404).json({ error: "Job not found" });
 //         }
-        
+
 //         // Update status to in_progress
 //         job.status = 'in_progress';
 //         await job.save();
@@ -710,47 +755,58 @@ router.get('/debug/workers', async (req, res) => {
 router.get('/worker/:workerId/assigned-jobs', async (req, res) => {
     try {
         const { workerId } = req.params;
-        
+
         // Find the Work profile to get the actual worker document ID
         const Work = require('../models/Work');
         const workerProfile = await Work.findOne({ userId: workerId });
-        
+
         // Build query for both assigned workers AND hired workers
         const query = {
             $or: [
                 // Jobs where worker was directly assigned
                 {
-                    'assignedWorker.workerId': workerId,
+                    'assignedWorker.workerId': workerProfile ? workerProfile._id : null,
                     status: { $in: ['assigned', 'scheduled', 'in_progress', 'completed'] }
                 },
                 // Jobs where worker was hired through bidding
                 {
                     'hiredWorker.workerId': workerProfile ? workerProfile._id : null,
-                    status: { $in: ['hired', 'booked', 'scheduled', 'in_progress', 'completed'] }
+                    status: { $in: ['assigned', 'hired', 'booked', 'scheduled', 'in_progress', 'completed'] }
                 }
             ]
         };
 
         const assignedJobs = await JobRequest.find(query)
-        .populate('userId', 'name phone email address fullAddress city state')
-        .sort({ updatedAt: -1 });
+            .populate('userId', 'name phone email address fullAddress city state')
+            .sort({ updatedAt: -1 });
 
         const jobsWithUserDetails = assignedJobs.map(job => {
             const isHired = job.hiredWorker && job.hiredWorker.workerId;
-            const workerInfo = isHired ? job.hiredWorker : job.assignedWorker;
-            
+
+            // Resolve address: trim so empty strings don't act as valid values
+            const resolvedAddress =
+                (job.fullAddress && job.fullAddress.trim()) ||
+                (job.address && job.address.trim()) ||
+                'Address not available';
+
+            const jobObj = job.toObject();
+
             return {
-                ...job.toObject(),
+                ...jobObj,
                 userName: job.userId?.name || 'Customer',
                 userPhone: job.userId?.phone || '+91 00000 00000',
                 userEmail: job.userId?.email || '',
-                address: job.fullAddress || job.address || (job.userId?.fullAddress || job.userId?.address || '') || 'Address not available',
-                city: job.city || job.userId?.city || '',
-                state: job.state || job.userId?.state || '',
+                address: resolvedAddress,
+                city: job.city || '',
+                state: job.state || '',
                 scheduledDate: job.scheduledDate || '',
                 scheduledTime: job.scheduledTime || '',
-                // Add flag to indicate if this was a hired job
-                isHiredJob: isHired,
+                // Explicitly pass media paths in case spread misses them
+                imagePath: jobObj.imagePath || null,
+                videoPath: jobObj.videoPath || null,
+                audioPath: jobObj.audioPath || null,
+                // Flag for hired-via-bid job
+                isHiredJob: !!isHired,
                 hiredAmount: isHired ? job.hiredWorker.bidAmount : null,
                 workerStatus: isHired ? 'You are hired' : 'Assigned'
             };
@@ -767,8 +823,38 @@ router.get('/worker/:workerId/assigned-jobs', async (req, res) => {
     }
 });
 
-// 2. ACCEPT JOB (Remains same)
+// 2. ACCEPT JOB - Update status to SCHEDULED (On the Way)
 router.put('/worker/:jobId/accept', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const job = await JobRequest.findByIdAndUpdate(
+            jobId,
+            { status: 'scheduled' }, // Changed from 'in_progress' to 'scheduled'
+            { new: true }
+        );
+        if (!job) return res.status(404).json({ success: false, error: "Job not found" });
+
+        // Notify User
+        if (job.userId) {
+            const serviceName = job.serviceName || 'your service';
+            const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || 'Your worker';
+            await sendPushNotification(
+                job.userId,
+                "✅ Worker Accepted Your Booking!",
+                `${workerName} accepted the booking for ${serviceName} and is on the way.`,
+                { type: 'worker_accepted', jobId: job._id },
+                'User'
+            );
+        }
+
+        res.status(200).json({ success: true, message: "Job accepted successfully", job });
+    } catch (error) {
+        res.status(500).json({ success: false, error: "Failed to accept job" });
+    }
+});
+
+// 2.5 START JOB - Update status to IN_PROGRESS
+router.put('/worker/:jobId/start', async (req, res) => {
     try {
         const { jobId } = req.params;
         const job = await JobRequest.findByIdAndUpdate(
@@ -776,10 +862,23 @@ router.put('/worker/:jobId/accept', async (req, res) => {
             { status: 'in_progress' },
             { new: true }
         );
+
         if (!job) return res.status(404).json({ success: false, error: "Job not found" });
-        res.status(200).json({ success: true, message: "Job accepted successfully", job });
+
+        // Notify User
+        if (job.userId) {
+            await sendPushNotification(
+                job.userId,
+                "Service Started",
+                "Your worker has started the service.",
+                { type: 'status_update', jobId: job._id },
+                'User'
+            );
+        }
+
+        res.status(200).json({ success: true, message: "Job started successfully", job });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Failed to accept job" });
+        res.status(500).json({ success: false, error: "Failed to start job" });
     }
 });
 
@@ -795,6 +894,17 @@ router.put('/worker/:jobId/complete', async (req, res) => {
 
         if (!job) {
             return res.status(404).json({ success: false, error: "Job not found" });
+        }
+
+        // Notify User
+        if (job.userId) {
+            await sendPushNotification(
+                job.userId,
+                "Service Completed",
+                "Your service has been marked as completed.",
+                { type: 'status_update', jobId: job._id },
+                'User'
+            );
         }
 
         res.status(200).json({
@@ -814,7 +924,7 @@ router.get('/user/:userId', async (req, res) => {
         const { userId } = req.params;
         const User = require('../models/User');
         const user = await User.findById(userId).select('name phone email');
-        
+
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -872,34 +982,41 @@ router.get('/:jobId/status', async (req, res) => {
     try {
         const { jobId } = req.params;
         const job = await JobRequest.findById(jobId);
-        
+
         if (!job) {
-            return res.status(404).json({ 
-                success: false, 
-                available: false, 
-                message: "Job not found" 
+            return res.status(404).json({
+                success: false,
+                available: false,
+                message: "Job not found"
             });
         }
 
         // Check if job is still available (not hired/booked)
-        const isAvailable = !job.hiredWorker && 
-                           job.status !== 'hired' && 
-                           job.status !== 'booked' && 
-                           job.status !== 'completed' && 
-                           job.status !== 'cancelled';
+        // IMPORTANT: Check if hiredWorker.workerId exists and is not undefined/null
+        // Also check assignedWorker to ensure the job isn't directly assigned
+        const hasHiredWorker = job.hiredWorker && job.hiredWorker.workerId && job.hiredWorker.workerId.toString().length > 0;
+        const hasAssignedWorker = job.assignedWorker && job.assignedWorker.workerId && job.assignedWorker.workerId.toString().length > 0;
+        const isAvailable = !hasHiredWorker &&
+            !hasAssignedWorker &&
+            job.status !== 'hired' &&
+            job.status !== 'booked' &&
+            job.status !== 'completed' &&
+            job.status !== 'cancelled' &&
+            job.status !== 'in_progress' &&
+            job.status !== 'assigned';
 
         res.status(200).json({
             success: true,
             available: isAvailable,
             status: job.status,
-            hiredWorker: job.hiredWorker || null
+            hiredWorker: job.hiredWorker && job.hiredWorker.workerId ? job.hiredWorker : null
         });
     } catch (error) {
         console.error('Job Status Check Error:', error);
-        res.status(500).json({ 
-            success: false, 
-            available: false, 
-            message: "Failed to check job status" 
+        res.status(500).json({
+            success: false,
+            available: false,
+            message: "Failed to check job status"
         });
     }
 });

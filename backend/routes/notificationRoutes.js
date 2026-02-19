@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const Notification = require('../models/Notification'); // Import the new model
 
 // In-memory store for push tokens (use database in production)
 let pushTokens = [];
 
-// Register device push token
+// --- 1. REGISTER PUSH TOKEN ---
 router.post('/register', async (req, res) => {
     try {
         const { userId, userType, expoPushToken } = req.body;
@@ -31,7 +32,7 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// Unregister push token
+// --- 2. UNREGISTER PUSH TOKEN ---
 router.post('/unregister', async (req, res) => {
     try {
         const { userId } = req.body;
@@ -43,10 +44,53 @@ router.post('/unregister', async (req, res) => {
     }
 });
 
-// Send push notification to a user
-async function sendPushNotification(userId, title, body, data = {}) {
+// --- 3. GET NOTIFICATIONS (Persistent) ---
+router.get('/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const notifications = await Notification.find({ userId })
+            .sort({ createdAt: -1 })
+            .limit(50); // Limit to last 50
+
+        res.json({ success: true, notifications });
+    } catch (error) {
+        console.error('Error fetching notifications:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch notifications' });
+    }
+});
+
+// --- 4. MARK AS READ ---
+router.put('/:id/read', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await Notification.findByIdAndUpdate(id, { isRead: true });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error reading notification:', error);
+        res.status(500).json({ success: false, error: 'Failed to mark as read' });
+    }
+});
+
+// --- HELPER: CREATE & SEND NOTIFICATION ---
+async function sendPushNotification(userId, title, body, data = {}, userModel = 'User') {
+    // 1. Save to Database
+    try {
+        await Notification.create({
+            userId,
+            userModel, // 'User' or 'Work'
+            type: data.type || 'system',
+            title,
+            message: body,
+            relatedId: data.jobId || null
+        });
+    } catch (dbError) {
+        console.error('Error saving notification to DB:', dbError);
+        // Continue to send push even if DB save fails
+    }
+
+    // 2. Send Push Notification (if token exists)
     const userToken = pushTokens.find(t => t.userId === userId);
-    
+
     if (!userToken) {
         console.log(`No push token found for user: ${userId}`);
         return false;

@@ -1,18 +1,19 @@
 import React from "react"
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Modal, 
-  ScrollView, 
-  Pressable, 
-  Platform 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
+  Pressable,
+  Platform
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Feather } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { useVerification } from "@/context/VerificationContext"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 
 // --- Types & Configuration ---
@@ -33,28 +34,75 @@ const STATUS_CONFIG = {
 } as const
 
 export default function Header({
-  notificationCount = 3,
+  notificationCount,
 }: Props) {
   const router = useRouter()
   const { verificationStatus } = useVerification()
   const [isNotiVisible, setIsNotiVisible] = React.useState(false)
 
   // Map context status to header status
-  const currentStatus: VerificationStatus = 
-    verificationStatus === 'not_submitted' ? 'not_verified' : 
-    verificationStatus === 'pending' ? 'pending' : 
-    verificationStatus === 'assigned' ? 'pending' : // 'assigned' shows as 'pending' in header
-    verificationStatus === 'verified' ? 'verified' : 'not_verified'
+  const currentStatus: VerificationStatus =
+    verificationStatus === 'not_submitted' ? 'not_verified' :
+      verificationStatus === 'pending' ? 'pending' :
+        verificationStatus === 'assigned' ? 'pending' : // 'assigned' shows as 'pending' in header
+          verificationStatus === 'verified' ? 'verified' : 'not_verified'
 
   const statusConfig = STATUS_CONFIG[currentStatus]
   // ... rest of your return code
 
-  // Mock Notification Data
-  const notifications = [
-    { id: 1, title: "New job invitation", desc: 'Client invited you to "Plumbing Repair"', time: "2m ago" },
-    { id: 2, title: "Proposal accepted", desc: 'Your bid for "AC Installation" was accepted', time: "1h ago" },
-    { id: 3, title: "New message", desc: "Sarah sent you a message about the project", time: "3h ago" },
-  ]
+  const [notifications, setNotifications] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(false)
+
+  const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+  // Fetch Notifications — uses user._id (matches worker.userId stored by the hire endpoint)
+  const fetchNotifications = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem("user");
+      if (!userStr) return;
+
+      const user = JSON.parse(userStr);
+      // IMPORTANT: notifications are stored with userId = worker.userId (the User _id),
+      // NOT the workerProfileId. Always use _id here.
+      const userId = user._id || user.id;
+
+      if (!userId) return;
+
+      const res = await fetch(`${API_URL}/api/notifications/${userId}`);
+      const data = await res.json();
+
+      if (data.success) {
+        setNotifications(data.notifications);
+      }
+    } catch (error) {
+      console.error("Failed to fetch notifications", error);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchNotifications();
+    // Poll for notifications every 10 seconds
+    const interval = setInterval(fetchNotifications, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const markAsRead = async (id: string) => {
+    try {
+      await fetch(`${API_URL}/api/notifications/${id}/read`, { method: 'PUT' });
+      setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
+    } catch (error) {
+      console.error("Error marking read", error);
+    }
+  };
+
+  const markAllRead = async () => {
+    // Optimistic update
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    // In production, add a mark-all-read endpoint
+    notifications.filter(n => !n.isRead).forEach(n => markAsRead(n._id));
+  };
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
@@ -86,15 +134,15 @@ export default function Header({
           </TouchableOpacity>
 
           {/* 3. Notification Bell with Badge */}
-          <TouchableOpacity 
-            style={styles.iconButton} 
-            onPress={() => setIsNotiVisible(true)}
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => { setIsNotiVisible(true); fetchNotifications(); }}
           >
-            <Feather name="bell" size={20} color="#6b7280" />
-            {notificationCount > 0 && (
+            <Feather name="bell" size={20} color={unreadCount > 0 ? "#2563eb" : "#6b7280"} />
+            {unreadCount > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>
-                  {notificationCount > 9 ? "9+" : notificationCount}
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </Text>
               </View>
             )}
@@ -109,8 +157,8 @@ export default function Header({
         animationType="fade"
         onRequestClose={() => setIsNotiVisible(false)}
       >
-        <Pressable 
-          style={styles.modalOverlay} 
+        <Pressable
+          style={styles.modalOverlay}
           onPress={() => setIsNotiVisible(false)}
         >
           <View style={styles.dropdownContainer}>
@@ -122,19 +170,33 @@ export default function Header({
             </View>
 
             <ScrollView bounces={false} style={styles.notiList}>
-              {notifications.map((item) => (
-                <TouchableOpacity key={item.id} style={styles.notiItem}>
-                  <View style={styles.notiDot} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.notiTitle}>{item.title}</Text>
-                    <Text style={styles.notiDesc}>{item.desc}</Text>
-                    <Text style={styles.notiTime}>{item.time}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+              {notifications.length === 0 ? (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#9ca3af' }}>No notifications</Text>
+                </View>
+              ) : (
+                notifications.map((item) => (
+                  <TouchableOpacity
+                    key={item._id}
+                    style={[styles.notiItem, { backgroundColor: item.isRead ? '#fff' : '#f0f9ff' }]}
+                    onPress={() => markAsRead(item._id)}
+                  >
+                    {!item.isRead && <View style={styles.notiDot} />}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.notiTitle, { fontWeight: item.isRead ? '400' : '700' }]}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.notiDesc}>{item.message}</Text>
+                      <Text style={styles.notiTime}>
+                        {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
 
-            <TouchableOpacity style={styles.viewAllBtn}>
+            <TouchableOpacity style={styles.viewAllBtn} onPress={markAllRead}>
               <Text style={styles.viewAllText}>Mark all as read</Text>
             </TouchableOpacity>
           </View>

@@ -34,12 +34,12 @@ const jobRequestSchema = new mongoose.Schema(
 
     // Hired worker from bid (for bidding workflow)
     hiredWorker: {
-      workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Work' },
-      workerName: String,
-      workerProfilePic: String,
-      bidId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bid' },
-      bidAmount: Number,
-      hiredAt: { type: Date, default: Date.now }
+      workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Work', default: undefined },
+      workerName: { type: String, default: undefined },
+      workerProfilePic: { type: String, default: undefined },
+      bidId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bid', default: undefined },
+      bidAmount: { type: Number, default: undefined },
+      hiredAt: { type: Date, default: undefined }
     },
 
     status: {

@@ -74,174 +74,150 @@ router.put("/:bidId/accept", async (req, res) => {
 router.post("/:bidId/hire", async (req, res) => {
   try {
     const { bidId } = req.params;
-    const { jobId, hirerId } = req.body; // User who is hiring
+    const { hirerId, jobId: bodyJobId } = req.body; // User who is hiring
 
-    console.log(`[HIRE] Starting hire process for bidId: ${bidId}, jobId: ${jobId}, hirerId: ${hirerId}`);
+    console.log(`[HIRE] Starting hire process for bidId: ${bidId}, hirerId: ${hirerId}`);
 
-    // 1. Get the job and find the bid within its bids array
-    let job;
-    let bid;
-    let standaloneBid = null;
-    
-    if (jobId) {
-      // If jobId is provided, look for the bid in the job's bids array
-      job = await JobRequest.findById(jobId);
-      if (!job) {
-        console.log(`[HIRE] Job not found: ${jobId}`);
-        return res.status(404).json({ success: false, message: "Job not found" });
+    // 1. Find the standalone Bid document first
+    let standaloneBid = await Bid.findById(bidId).populate("job");
+
+    if (!standaloneBid) {
+      console.log(`[HIRE] Bid not found by bidId: ${bidId}. Trying fallback lookup by jobId...`);
+      // FALLBACK: bidId might be an embedded subdocument _id, not a standalone Bid _id.
+      // Try to find the most recent pending standalone Bid for the given jobId.
+      if (bodyJobId) {
+        standaloneBid = await Bid.findOne({
+          job: bodyJobId,
+          status: "pending"
+        }).populate("job").sort({ createdAt: -1 });
+        if (standaloneBid) {
+          console.log(`[HIRE] Fallback found standalone bid: ${standaloneBid._id}`);
+        }
       }
-      
-      console.log(`[HIRE] Found job, checking bids. Total bids: ${job.bids.length}`);
-      
-      // Find the bid within the job's bids subdocument array
-      bid = job.bids.find(b => b._id.toString() === bidId);
-      if (!bid) {
-        console.log(`[HIRE] Bid ${bidId} not found in job bids`);
-        console.log(`[HIRE] Available bid IDs:`, job.bids.map(b => b._id.toString()));
-        return res.status(404).json({ success: false, message: "Bid not found in job" });
-      }
-      
-      console.log(`[HIRE] Found bid in job, worker: ${bid.workerId}, amount: ${bid.bidAmount}`);
-    } else {
-      // Fallback: try to find as standalone Bid document
-      standaloneBid = await Bid.findById(bidId).populate("job");
       if (!standaloneBid) {
-        console.log(`[HIRE] Bid not found as standalone document: ${bidId}`);
         return res.status(404).json({ success: false, message: "Bid not found" });
       }
-      job = standaloneBid.job;
     }
 
-    // 2. Check if job is already hired/booked/assigned
-    // Only block if status is hired/booked/completed/cancelled, or hiredWorker.workerId is set
-      if (
-        job.status === "hired" ||
-        job.status === "booked" ||
-        job.status === "completed" ||
-        job.status === "cancelled" ||
-        (job.hiredWorker && job.hiredWorker.workerId)
-      ) {
-        console.log(`[HIRE] Job already assigned: status=${job.status}, hiredWorker=${job.hiredWorker ? JSON.stringify(job.hiredWorker) : 'null'}`);
-        return res.status(400).json({ 
-        success: false, 
-        message: "This job has already been assigned to another worker" 
-        });
-      }
+    const job = await JobRequest.findById(standaloneBid.job._id);
+    if (!job) {
+      return res.status(404).json({ success: false, message: "Job associated with bid not found" });
+    }
 
-    // 3. Get worker details from Work model
-    const worker = await Work.findById(bid.workerId);
+    // 2. Get worker details (standaloneBid.worker is the User ID in some implementations, need to verify)
+    // In submit-bid: worker: workProfile.userId
+    // So distinct lookup needed to get Work profile
+    const workerUserId = standaloneBid.worker;
+    const worker = await Work.findOne({ userId: workerUserId });
+
     if (!worker) {
-      console.log(`[HIRE] Worker profile not found for workerId: ${bid.workerId}`);
+      console.log(`[HIRE] Worker profile not found for userId: ${workerUserId}`);
       return res.status(404).json({ success: false, message: "Worker profile not found" });
     }
 
-    console.log(`[HIRE] Found worker: ${worker.name}`);
+    // 3. Find the embedded bid in JobRequest using Work ID
+    // Embedded bid uses workerId = Work._id
+    const embeddedBid = job.bids.find(b => b.workerId && b.workerId.toString() === worker._id.toString());
 
-    // 4. Get hirer (user) details
-    const hirer = await User.findById(hirerId);
-
-    // 5. Update the hired bid status in the job's bids array
-    bid.status = "hired";
-    const updateResult = await JobRequest.updateOne(
-      { _id: job._id, "bids._id": bid._id },
-      { $set: { "bids.$.status": "hired" } }
-    );
-    console.log(`[HIRE] Updated bid status in JobRequest, result:`, updateResult.modifiedCount);
-
-    // 5b. Also update the standalone Bid document if it exists
-    if (standaloneBid) {
-      standaloneBid.status = "hired";
-      standaloneBid.hiredAt = new Date();
-      standaloneBid.hiredBy = hirerId;
-      await standaloneBid.save();
-      console.log(`[HIRE] Updated standalone bid status`);
-    } else {
-      // Try to find and update the standalone bid by job and worker
-      const updatedStandaloneBid = await Bid.findOneAndUpdate(
-        { job: job._id, worker: worker.userId },
-        { status: "hired", hiredAt: new Date(), hiredBy: hirerId },
-        { new: true }
-      );
-      if (updatedStandaloneBid) {
-        console.log(`[HIRE] Updated standalone bid ${updatedStandaloneBid._id}`);
-      } else {
-        console.log(`[HIRE] No standalone bid found to update`);
-      }
+    if (!embeddedBid) {
+      console.log(`[HIRE] Corresponding embedded bid not found for worker: ${worker._id}`);
+      // Only fail if strict consistency is required, otherwise we might proceed with just standalone/job update
+      // For now, let's try to proceed by just updating job and standalone bid, 
+      // but we won't be able to update specific embedded bid status if not found.
     }
 
-    // 6. Update the job with hired worker info and status
+    // 4. Check if job is already hired
+    if (job.status === "assigned" || job.status === "hired" || job.status === "in_progress" || job.status === "completed") {
+      // Check idempotency
+      if (job.hiredWorker && job.hiredWorker.workerId && job.hiredWorker.workerId.toString() === worker._id.toString()) {
+        return res.status(200).json({ success: true, message: "Worker already hired", job });
+      }
+      return res.status(400).json({ success: false, message: "Job already assigned to another worker" });
+    }
+
+    // 5. Update Job Requests' embedded bid status (if found)
+    if (embeddedBid) {
+      await JobRequest.updateOne(
+        { _id: job._id, "bids._id": embeddedBid._id },
+        { $set: { "bids.$.status": "hired" } }
+      );
+    }
+
+    // 6. Update Standalone Bid
+    standaloneBid.status = "hired";
+    standaloneBid.hiredAt = new Date();
+    standaloneBid.hiredBy = hirerId;
+    await standaloneBid.save();
+
+    // 7. Update Job Status & Hired Worker Info
+    job.status = "assigned"; // "assigned" matches User App UI expectations
     job.hiredWorker = {
       workerId: worker._id,
       workerName: worker.name,
       workerProfilePic: worker.profilePic,
-      bidId: bid._id,
-      bidAmount: bid.bidAmount,
+      bidId: standaloneBid._id, // Use standalone ID for reference
+      bidAmount: standaloneBid.amount,
       hiredAt: new Date()
     };
-    job.status = "hired";
-    job.totalAmount = bid.bidAmount;
+    job.totalAmount = standaloneBid.amount;
+    // Save scheduling info from checkout screen
+    if (req.body.scheduledDate) job.scheduledDate = req.body.scheduledDate;
+    if (req.body.scheduledTime) job.scheduledTime = req.body.scheduledTime;
+
+    // Also set assignedWorker for backward compatibility with 'assigned' logic if needed
+    job.assignedWorker = {
+      workerId: worker._id,
+      workerName: worker.name,
+      workerProfilePic: worker.profilePic,
+      assignedAt: new Date()
+    };
+
     await job.save();
-    
-    console.log(`[HIRE] Updated job status to hired`);
 
-    // 7. Close all other bids for this job in JobRequest
-    const closeResult = await JobRequest.updateOne(
-      { _id: job._id },
-      { 
-        $set: { 
-          "bids.$[elem].status": "closed" 
-        } 
-      },
-      { 
-        arrayFilters: [ { "elem._id": { $ne: bid._id } } ] 
-      }
-    );
-    console.log(`[HIRE] Closed other bids in JobRequest, result:`, closeResult.modifiedCount);
-
-    // 7b. Close all other standalone bids for this job
-    const closeStandaloneResult = await Bid.updateMany(
-      { job: job._id, _id: { $ne: standaloneBid?._id }, status: "pending" },
+    // 8. Close other bids
+    await Bid.updateMany(
+      { job: job._id, _id: { $ne: standaloneBid._id }, status: "pending" },
       { status: "closed" }
     );
-    console.log(`[HIRE] Closed other standalone bids, result:`, closeStandaloneResult.modifiedCount);
-
-    // 8. Send notification to the hired worker
-    try {
-      await notificationRoutes.sendPushNotification(
-        worker.userId.toString(),
-        "You're Hired! Congratulations!",
-        `You have been hired for "${job.serviceName || job.description || 'a job'}" by ${hirer?.name || 'a client'}. Check your Jobs page for details.`,
-        {
-          type: "hired",
-          jobId: job._id.toString(),
-          bidId: bid._id.toString()
-        }
+    // Update embedded bids
+    if (embeddedBid) {
+      await JobRequest.updateOne(
+        { _id: job._id },
+        { $set: { "bids.$[elem].status": "closed" } },
+        { arrayFilters: [{ "elem._id": { $ne: embeddedBid._id } }] }
       );
-      console.log(`[HIRE] Notification sent to worker`);
-    } catch (notifError) {
-      console.error("Failed to send notification:", notifError);
-      // Don't fail the request if notification fails
     }
 
-    // 9. Return success response
-    console.log(`[HIRE] Hire process completed successfully`);
+    // 9. Send Notification
+    try {
+      const toTitleCase = s => s.replace(/\b\w/g, c => c.toUpperCase());
+      const jobName = job.serviceName?.trim()
+        ? toTitleCase(job.serviceName)
+        : job.skillsRequired?.[0]
+          ? toTitleCase(job.skillsRequired[0])
+          : job.description
+            ? toTitleCase(job.description.trim().split(/\s+/).slice(0, 4).join(' '))
+            : 'your service';
+      await notificationRoutes.sendPushNotification(
+        worker.userId.toString(),
+        "🎉 You're Hired!",
+        `You've been hired for ${jobName}. Bid amount: ₹${standaloneBid.amount}`,
+        { type: "hired", jobId: job._id.toString() },
+        'Work'
+      );
+    } catch (e) {
+      console.error("Notification failed", e);
+    }
+
     res.json({
       success: true,
       message: "Worker hired successfully",
-      job: {
-        _id: job._id,
-        status: job.status,
-        hiredWorker: job.hiredWorker
-      },
-      bid: {
-        _id: bid._id,
-        status: bid.status
-      }
+      job
     });
 
   } catch (err) {
     console.error("[HIRE] Error:", err);
-    res.status(500).json({ success: false, message: "Server error during hiring: " + err.message });
+    res.status(500).json({ success: false, message: "Server error: " + err.message });
   }
 });
 
@@ -253,15 +229,15 @@ router.post("/:bidId/hire", async (req, res) => {
 router.get("/hired/worker/:workerId", async (req, res) => {
   try {
     const { workerId } = req.params;
-    
+
     // Find the Work profile - try both _id and userId
-    const workProfile = await Work.findOne({ 
+    const workProfile = await Work.findOne({
       $or: [
         { _id: workerId },
         { userId: workerId }
       ]
     });
-    
+
     if (!workProfile) {
       return res.status(404).json({ success: false, message: "Worker profile not found" });
     }
@@ -270,34 +246,34 @@ router.get("/hired/worker/:workerId", async (req, res) => {
     const workId = workProfile._id;
 
     // Find all hired bids for this worker (using userId)
-    let hiredBids = await Bid.find({ 
-      worker: queryUserId, 
-      status: "hired" 
+    let hiredBids = await Bid.find({
+      worker: queryUserId,
+      status: "hired"
     })
-    .populate({
-      path: "job",
-      select: "serviceName description status scheduledDate scheduledTime address fullAddress location totalAmount userId",
-      populate: {
-        path: "userId",
-        select: "name phone email"
-      }
-    })
-    .sort({ hiredAt: -1 });
+      .populate({
+        path: "job",
+        select: "serviceName description status scheduledDate scheduledTime address fullAddress location totalAmount userId",
+        populate: {
+          path: "userId",
+          select: "name phone email"
+        }
+      })
+      .sort({ hiredAt: -1 });
 
     // FALLBACK: Also check JobRequest embedded bids for hired status
     // This handles bids created before the fix was applied
     if (hiredBids.length === 0) {
       console.log(`[Hired Bids] No standalone bids found, checking JobRequest embedded bids for workId: ${workId}`);
-      
+
       const jobsWithHiredBids = await JobRequest.find({
         "bids.workerId": workId,
         "bids.status": "hired"
       })
-      .populate({
-        path: "userId",
-        select: "name phone email"
-      })
-      .sort({ updatedAt: -1 });
+        .populate({
+          path: "userId",
+          select: "name phone email"
+        })
+        .sort({ updatedAt: -1 });
 
       // Convert embedded bids to Bid-like format
       for (const job of jobsWithHiredBids) {
@@ -349,7 +325,7 @@ router.get("/active/worker/:workerId", async (req, res) => {
     const { workerId } = req.params;
 
     // First, try to find the Work profile to get the userId
-    const workProfile = await Work.findOne({ 
+    const workProfile = await Work.findOne({
       $or: [
         { _id: workerId },
         { userId: workerId }
@@ -365,16 +341,16 @@ router.get("/active/worker/:workerId", async (req, res) => {
     }
 
     // Find all pending bids for this worker (using userId)
-    let activeBids = await Bid.find({ 
-      worker: queryUserId, 
-      status: "pending" 
+    let activeBids = await Bid.find({
+      worker: queryUserId,
+      status: "pending"
     })
-    .populate({
-      path: "job",
-      match: { status: { $nin: ["hired", "booked", "completed", "cancelled"] } },
-      select: "serviceName description status budget location scheduledDate scheduledTime address fullAddress"
-    })
-    .sort({ createdAt: -1 });
+      .populate({
+        path: "job",
+        match: { status: { $nin: ["hired", "booked", "completed", "cancelled"] } },
+        select: "serviceName description status budget location scheduledDate scheduledTime address fullAddress"
+      })
+      .sort({ createdAt: -1 });
 
     // Filter out bids where job was null (already hired by someone else)
     let validBids = activeBids.filter(bid => bid.job !== null);
@@ -383,7 +359,7 @@ router.get("/active/worker/:workerId", async (req, res) => {
     // This handles bids created before the fix was applied
     if (validBids.length === 0) {
       console.log(`[Active Bids] No standalone bids found, checking JobRequest embedded bids for workId: ${workId}`);
-      
+
       const jobsWithBids = await JobRequest.find({
         status: { $nin: ["hired", "booked", "completed", "cancelled"] },
         "bids.workerId": workId,
@@ -438,7 +414,7 @@ router.get("/closed/worker/:workerId", async (req, res) => {
     const { workerId } = req.params;
 
     // Find the Work profile - try both _id and userId
-    const workProfile = await Work.findOne({ 
+    const workProfile = await Work.findOne({
       $or: [
         { _id: workerId },
         { userId: workerId }
@@ -454,21 +430,21 @@ router.get("/closed/worker/:workerId", async (req, res) => {
     }
 
     // Find all closed bids for this worker (using userId)
-    let closedBids = await Bid.find({ 
-      worker: queryUserId, 
-      status: "closed" 
+    let closedBids = await Bid.find({
+      worker: queryUserId,
+      status: "closed"
     })
-    .populate({
-      path: "job",
-      select: "serviceName description status budget location scheduledDate scheduledTime address fullAddress"
-    })
-    .sort({ updatedAt: -1 });
+      .populate({
+        path: "job",
+        select: "serviceName description status budget location scheduledDate scheduledTime address fullAddress"
+      })
+      .sort({ updatedAt: -1 });
 
     // FALLBACK: Also check JobRequest embedded bids for closed status
     // This handles bids created before the fix was applied
     if (closedBids.length === 0) {
       console.log(`[Closed Bids] No standalone bids found, checking JobRequest embedded bids for workId: ${workId}`);
-      
+
       const jobsWithClosedBids = await JobRequest.find({
         "bids.workerId": workId,
         "bids.status": "closed"

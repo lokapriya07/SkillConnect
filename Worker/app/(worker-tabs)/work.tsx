@@ -24,14 +24,23 @@ import { Audio } from "expo-av";
 import { VideoView, useVideoPlayer } from "expo-video";
 import * as Location from 'expo-location';
 import { Colors } from "@/constants/Colors";
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 // Notifications are not supported in Expo Go with SDK 53
 // We'll handle this gracefully
 let NotificationsModule: any = null;
-try {
-    NotificationsModule = require('expo-notifications');
-} catch (e) {
-    console.log('Notifications not available (Expo Go)');
+
+// Check if running in Expo Go
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+if (!isExpoGo) {
+    try {
+        NotificationsModule = require('expo-notifications');
+    } catch (e) {
+        console.log('Notifications not available (Expo Go)');
+    }
+} else {
+    console.log('Notifications disabled in Expo Go (SDK 53 compatibility)');
 }
 
 export default function WorkerJobDetails() {

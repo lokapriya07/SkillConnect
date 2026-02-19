@@ -4,19 +4,62 @@ import { Colors } from "@/constants/Colors"
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
-import { useState } from "react"
-import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { useEffect, useState } from "react"
+import { Alert, Image, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native"
 import { Linking } from "react-native"
 import { useRouter } from "expo-router"
 
 export default function BookingsScreen() {
     const router = useRouter()
     const { bookings, updateBooking, cancelBooking, darkMode, user } = useAppStore()
+    const [hiredJobs, setHiredJobs] = useState<any[]>([])
+    const [loadingHiredJobs, setLoadingHiredJobs] = useState(true)
+    const [refreshing, setRefreshing] = useState(false)
 
     const currentUserId = user?._id || user?.id
-    // Filter bookings: show only current user's bookings, or bookings without userId (backwards compatibility)
-    const userBookingsList = bookings.filter(b => 
-        b.status !== "cancelled" && 
+
+    // Fetch hired jobs from backend when component mounts
+    useEffect(() => {
+        if (currentUserId) {
+            fetchHiredJobs();
+        }
+    }, [currentUserId]);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await fetchHiredJobs();
+        setRefreshing(false);
+    };
+
+    const fetchHiredJobs = async () => {
+        try {
+            setLoadingHiredJobs(true);
+            const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.9:5000";
+            const response = await fetch(`${API_URL}/api/jobs/user/${currentUserId}`);
+            const data = await response.json();
+
+            if (data.success && data.jobs) {
+                // Filter hired/assigned/booked jobs that have a hiredWorker
+                // Note: the hire endpoint sets status = 'assigned', not 'hired'/'booked'
+                const hired = data.jobs.filter((job: any) =>
+                    ['hired', 'booked', 'assigned', 'in_progress', 'scheduled'].includes(job.status) &&
+                    job.hiredWorker &&
+                    job.hiredWorker.workerName  // ensure hiredWorker data is present
+                );
+                setHiredJobs(hired);
+            }
+        } catch (error) {
+            console.error("Error fetching hired jobs:", error);
+        } finally {
+            setLoadingHiredJobs(false);
+        }
+    }
+
+    // Filter bookings: show only current user's bookings, exclude 'hired_*' entries
+    // (hired jobs are now sourced only from the API via hiredJobs state, not the local store)
+    const userBookingsList = bookings.filter(b =>
+        b.status !== "cancelled" &&
+        !b.id?.startsWith('hired_') &&  // exclude old persisted hired jobs from store
         (!b.userId || b.userId === currentUserId)
     )
 
@@ -148,23 +191,83 @@ export default function BookingsScreen() {
 
     const styles = getStyles()
 
+    // Combine regular bookings with hired jobs from bids
+    const allBookings = [
+        ...userBookingsList,
+        ...hiredJobs.map(job => {
+            // Build a smart short name: prefer serviceName, then first skill, then first 4 words of description
+            const toTitleCase = (s: string) => s.replace(/\b\w/g, c => c.toUpperCase());
+            const smartName =
+                (job.serviceName && job.serviceName.trim())
+                    ? toTitleCase(job.serviceName.trim())
+                    : (job.skillsRequired?.[0])
+                        ? toTitleCase(job.skillsRequired[0])
+                        : (job.description)
+                            ? toTitleCase(job.description.trim().split(/\s+/).slice(0, 5).join(' '))
+                            : 'Service Booking';
+
+            return ({
+                id: `hired_${job._id}`,
+                items: [{
+                    service: {
+                        id: job._id,
+                        name: smartName,
+                        description: job.description || "",
+                        price: job.hiredWorker?.bidAmount || job.totalAmount || job.budget || 0,
+                        duration: "",
+                        image: job.imagePath || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=100&h=100&fit=crop",
+                        rating: 0,
+                        reviews: 0,
+                        category: job.skillsRequired?.[0] || "Hired Service"
+                    },
+                    quantity: 1
+                }],
+                total: job.hiredWorker?.bidAmount || job.totalAmount || job.budget || 0,
+                status: "confirmed",
+                date: job.scheduledDate || new Date().toLocaleDateString(),
+                time: job.scheduledTime || "To be confirmed",
+                address: job.fullAddress || job.address || "",
+                paymentMethod: "confirmed",
+                providerName: job.hiredWorker?.workerName || "Worker",
+                assignedWorker: {
+                    _id: job.hiredWorker?.workerId || "",
+                    userId: job.hiredWorker?.workerId || "",
+                    name: job.hiredWorker?.workerName || "Worker",
+                    phone: "",
+                    profilePic: job.hiredWorker?.workerProfilePic
+                },
+                isHiredJob: true
+            });
+        })
+    ];
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>My Bookings</Text>
             </View>
 
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {userBookingsList.length === 0 ? (
+            <ScrollView
+                style={styles.content}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
+            >
+                {loadingHiredJobs ? (
+                    <View style={styles.emptyContainer}>
+                        <ActivityIndicator size="large" color={Colors.primary} />
+                        <Text style={styles.emptyText}>Loading bookings...</Text>
+                    </View>
+                ) : allBookings.length === 0 ? (
                     <View style={styles.emptyContainer}>
                         <Ionicons name="calendar-outline" size={80} color={textSecondaryColor} />
                         <Text style={styles.emptyText}>No bookings found</Text>
                     </View>
                 ) : (
-                    userBookingsList.map((booking: any) => {
-                        const worker = booking.worker
+                    allBookings.map((booking: any) => {
+                        const worker = booking.assignedWorker || booking.worker
                         const status = booking.status?.toLowerCase() || "confirmed"
                         const isActive = status === "upcoming" || status === "confirmed"
+                        const providerName = booking.providerName || (booking.assignedWorker?.name ? `Hired: ${booking.assignedWorker.name}` : "Professional")
 
                         return (
                             <TouchableOpacity
@@ -189,9 +292,11 @@ export default function BookingsScreen() {
                                     />
                                     <View style={styles.bookingInfo}>
                                         <Text style={styles.bookingService}>{booking.items?.[0]?.service?.name || "Service"}</Text>
-                                        <Text style={styles.bookingProvider}>by {booking.providerName || "Professional"}</Text>
+                                        <Text style={styles.bookingProvider}>by {providerName}</Text>
                                         <View style={[styles.statusBadge, { backgroundColor: getStatusBg(status) }]}>
-                                            <Text style={[styles.statusText, { color: getStatusColor(status) }]}>{status.toUpperCase()}</Text>
+                                            <Text style={[styles.statusText, { color: getStatusColor(status) }]}>
+                                                {booking.isHiredJob ? 'HIRED' : status.toUpperCase()}
+                                            </Text>
                                         </View>
                                     </View>
 
