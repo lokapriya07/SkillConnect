@@ -193,10 +193,9 @@ export default function ProfilePage({ navigation }: any) {
         style: "destructive",
         onPress: async () => {
           try {
-            // IMPORTANT: Clear verification flags on logout 
-            // so the next user starts fresh
-            await AsyncStorage.removeItem('is_verified_worker');
-            await AsyncStorage.removeItem('verification_requested');
+            // Note: We keep verification status intact so when the same user
+            // logs back in, they remain verified without needing re-verification.
+            // Only clear user session data, not verification status.
             await AsyncStorage.removeItem('userId');
             await AsyncStorage.removeItem('user');
 
