@@ -64,12 +64,15 @@ export default function BookingsScreen() {
             const data = await response.json();
 
             if (data.success && data.jobs) {
-                // Filter hired/assigned/booked jobs that have a hiredWorker
-                // Note: the hire endpoint sets status = 'assigned', not 'hired'/'booked'
+                // Filter hired/assigned/booked jobs that have either hiredWorker OR assignedWorker
+                // - hiredWorker: for custom "Hire Worker" jobs (user hires a worker via bid)
+                // - assignedWorker: for predefined services (worker auto-assigned)
                 const hired = data.jobs.filter((job: any) =>
                     ['hired', 'booked', 'assigned', 'in_progress', 'scheduled'].includes(job.status) &&
-                    job.hiredWorker &&
-                    job.hiredWorker.workerName  // ensure hiredWorker data is present
+                    (
+                        (job.hiredWorker && job.hiredWorker.workerName) ||  // Custom hire jobs
+                        (job.assignedWorker && job.assignedWorker.workerName) // Predefined services
+                    )
                 );
                 setHiredJobs(hired);
             }
@@ -102,15 +105,17 @@ export default function BookingsScreen() {
 
     const getStatusColor = (status: string) => {
         const s = status?.toLowerCase() || ""
-        if (s === "upcoming" || s === "confirmed") return "#fff"  // White for confirmed/upcoming
+        if (s === "upcoming" || s === "confirmed" || s === "assigned" || s === "scheduled") return "#fff"  // White for confirmed/upcoming/assigned/scheduled
         if (s === "completed") return Colors.success
         if (s === "cancelled") return Colors.error
+        if (s === "in_progress") return "#fff"
         return textSecondaryColor
     }
 
     const getStatusBg = (status: string) => {
         const s = status?.toLowerCase() || ""
-        if (s === "upcoming" || s === "confirmed") return Colors.primary
+        if (s === "upcoming" || s === "confirmed" || s === "assigned" || s === "scheduled") return Colors.primary  // Primary for assigned/predefined services too
+        if (s === "in_progress") return "#f59e0b"  // Amber for in progress
         if (s === "completed") return darkMode ? "#1B5E20" : "#E8F5E9"
         if (s === "cancelled") return darkMode ? "#5C1A1A" : "#FFEBEE"
         return surfaceColor
@@ -144,7 +149,7 @@ export default function BookingsScreen() {
             const found = services.find((s) => {
                 const name = (s.name || "").toLowerCase()
                 const desc = (s.description || "").toLowerCase()
-                return keywords.some(k => name.includes(k) || desc.includes(k))
+                return keywords.some(k => name.includes(String(k)) || desc.includes(String(k)))
             })
             if (found) return found.name
         }
@@ -253,7 +258,7 @@ export default function BookingsScreen() {
 
     const styles = getStyles()
 
-    // Combine regular bookings with hired jobs from bids
+    // Combine regular bookings with hired jobs from bids and assigned jobs from predefined services
     const allBookings = [
         ...userBookingsList,
         ...hiredJobs.map(job => {
@@ -268,8 +273,18 @@ export default function BookingsScreen() {
                             ? toTitleCase(job.description.trim().split(/\s+/).slice(0, 5).join(' '))
                             : 'Service Booking';
 
+            // Handle both hiredWorker (custom hire) and assignedWorker (predefined services)
+            const worker = job.hiredWorker || job.assignedWorker;
+            const workerId = job.hiredWorker?.workerId || job.assignedWorker?.workerId || "";
+            const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || "Worker";
+            const workerProfilePic = job.hiredWorker?.workerProfilePic || job.assignedWorker?.workerProfilePic;
+            const isAssignedJob = !job.hiredWorker && job.assignedWorker; // Predefined service with auto-assigned worker
+            const isHiredJob = !!job.hiredWorker; // Job hired through bidding
+
             return ({
                 id: `hired_${job._id}`,
+                // Store the actual backend job ID for status tracking
+                jobId: job._id,
                 items: [{
                     service: {
                         id: job._id,
@@ -285,20 +300,23 @@ export default function BookingsScreen() {
                     quantity: 1
                 }],
                 total: job.hiredWorker?.bidAmount || job.totalAmount || job.budget || 0,
-                status: "confirmed",
+                // Use actual job status from API, not hardcoded
+                status: job.status || (isAssignedJob ? "assigned" : "confirmed"),
                 date: job.scheduledDate || new Date().toLocaleDateString(),
                 time: job.scheduledTime || "To be confirmed",
                 address: job.fullAddress || job.address || "",
                 paymentMethod: "confirmed",
-                providerName: job.hiredWorker?.workerName || "Worker",
+                providerName: workerName,
                 assignedWorker: {
-                    _id: job.hiredWorker?.workerId || "",
-                    userId: job.hiredWorker?.workerId || "",
-                    name: job.hiredWorker?.workerName || "Worker",
+                    _id: workerId,
+                    userId: workerId,
+                    name: workerName,
                     phone: "",
-                    profilePic: job.hiredWorker?.workerProfilePic
+                    profilePic: workerProfilePic
                 },
-                isHiredJob: true
+                // Track both flags properly
+                isHiredJob: isHiredJob,
+                isAssignedJob: isAssignedJob
             });
         })
     ];
@@ -357,7 +375,13 @@ export default function BookingsScreen() {
                                         <Text style={styles.bookingProvider}>by {providerName}</Text>
                                         <View style={[styles.statusBadge, { backgroundColor: getStatusBg(status) }]}>
                                             <Text style={[styles.statusText, { color: getStatusColor(status) }]}>
-                                                {booking.isHiredJob ? 'HIRED' : status.toUpperCase()}
+                                                {booking.isAssignedJob ? 
+                                                    (status === 'assigned' ? 'ASSIGNED' : 
+                                                     status === 'scheduled' ? 'ON THE WAY' :
+                                                     status === 'in_progress' ? 'IN PROGRESS' :
+                                                     status === 'completed' ? 'COMPLETED' :
+                                                     status.toUpperCase()) : 
+                                                    (booking.isHiredJob ? 'HIRED' : status.toUpperCase())}
                                             </Text>
                                         </View>
                                     </View>

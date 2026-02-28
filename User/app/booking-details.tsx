@@ -29,31 +29,92 @@ export default function BookingDetailsScreen() {
   const [liveJob, setLiveJob] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
+  // Get the correct job ID: prefer jobId from booking (for assigned jobs), fallback to bookingId
+  const getJobIdToFetch = () => {
+    // First check if the booking has a linked jobId from assign-worker
+    if (storeBooking?.jobId) {
+      console.log('Using jobId from booking:', storeBooking.jobId);
+      return storeBooking.jobId;
+    }
+    
+    // Otherwise, strip prefixes from the bookingId to get the job ID
+    let cleanId = typeof bookingId === 'string' ? bookingId : '';
+    cleanId = cleanId.replace(/^hired_/, '').replace(/^assigned_/, '').replace(/^booking_/, '');
+    console.log('Using cleaned bookingId as jobId:', cleanId);
+    return cleanId;
+  };
+
   useEffect(() => {
     let interval: ReturnType<typeof setTimeout>
 
     const fetchStatus = async () => {
       try {
-        // Strip the 'hired_' prefix that bookings-screen adds to distinguish hired jobs in the list
-        const cleanId = typeof bookingId === 'string' ? bookingId.replace(/^hired_/, '') : bookingId;
+        // Get the correct job ID (from booking.jobId or from cleaned bookingId)
+        const cleanId = getJobIdToFetch();
+        
+        console.log('Fetching job status for ID:', cleanId, 'original:', bookingId);
+        
+        if (!cleanId || cleanId.length < 10) {
+          console.log('Invalid job ID, skipping fetch');
+          return;
+        }
+        
         // Use the correct endpoint that actually exists in the backend
         const res = await fetch(`${API_URL}/api/jobs/get-job/${cleanId}`);
         const data = await res.json();
+        
+        console.log('Job fetch response:', data);
+        
         if (data.success && data.job) {
+          // Log the job status for debugging
+          console.log('Job status from API:', data.job.status);
+          console.log('Job assignedWorker:', data.job.assignedWorker);
+          console.log('Job hiredWorker:', data.job.hiredWorker);
+          
           setLiveJob(data.job);
           setIsSyncing(true);
+        } else {
+          console.log('Job not found or fetch failed');
+          setIsSyncing(false);
         }
-      } catch (e) { setIsSyncing(false); }
+      } catch (e) { 
+        console.error('Error fetching job status:', e);
+        setIsSyncing(false); 
+      }
     };
     fetchStatus();
+    // Poll every 5 seconds for status updates
     interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, [bookingId]);
 
   const displayData = liveJob || storeBooking || {};
-  // Handle both 'assigned' and 'hired' statuses as step 0 (Order Accepted)
+  
+  // Handle all possible status values from backend
+  // Map various statuses to our tracking steps
   const rawStatus = displayData?.status || 'assigned';
-  const currentStatus = rawStatus === 'hired' || rawStatus === 'booked' ? 'assigned' : rawStatus;
+  
+  // Map status to step: 
+  // - 'finding_workers', 'bidding', 'finding' -> 'assigned' (waiting for worker)
+  // - 'hired', 'booked' -> 'assigned' (worker assigned)
+  // - 'assigned' -> 'assigned' (confirmed)
+  // - 'scheduled' -> 'scheduled' (on the way)
+  // - 'in_progress' -> 'in_progress' (service in progress)
+  // - 'completed' -> 'completed' (job finished)
+  const statusMap: { [key: string]: string } = {
+    'finding_workers': 'assigned',
+    'bidding': 'assigned',
+    'finding': 'assigned',
+    'hired': 'assigned',
+    'booked': 'assigned',
+    'assigned': 'assigned',
+    'scheduled': 'scheduled',
+    'in_progress': 'in_progress',
+    'completed': 'completed',
+    'cancelled': 'cancelled'
+  };
+  
+  const currentStatus = statusMap[rawStatus?.toLowerCase()] || 'assigned';
   const currentStepIndex = STATUS_STEPS.findIndex(s => s.key === currentStatus);
   // Prefer hiredWorker name, then assignedWorker name
   const workerName = displayData?.hiredWorker?.workerName ||

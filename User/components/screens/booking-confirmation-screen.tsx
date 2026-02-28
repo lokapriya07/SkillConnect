@@ -19,6 +19,7 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
     const user = useAppStore((state) => state.user)
     const assignWorker = useAppStore((state) => state.assignWorker)
     const darkMode = useAppStore((state) => state.darkMode)
+    const updateBooking = useAppStore((state) => state.updateBooking)
     
     const [assignedWorker, setAssignedWorker] = useState<AssignedWorker | null>(null)
     const [loadingWorker, setLoadingWorker] = useState(true)
@@ -131,6 +132,11 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
                 // Also update in store for persistence
                 if (currentBooking.id) {
                     assignWorker(currentBooking.id, worker)
+                    // CRITICAL: Save the backend jobId so booking-details can fetch status updates
+                    if (data.jobId) {
+                        updateBooking(currentBooking.id, { jobId: data.jobId })
+                        console.log('Saved jobId to booking:', data.jobId)
+                    }
                 }
             } else if (data.totalWorkersFound === 0 || data.error) {
                 // No workers found - set null to show no worker message

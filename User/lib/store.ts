@@ -35,6 +35,7 @@ export interface Address {
 export interface Booking {
   id: string
   userId?: string  // Optional - for backwards compatibility
+  jobId?: string  // Linked backend JobRequest ID for tracking status
   items: CartItem[]
   total: number
   status: "confirmed" | "in-progress" | "completed" | "cancelled"
