@@ -1,10 +1,11 @@
 "use client"
 
 import { Colors } from "@/constants/Colors"
+import { getServiceById, services } from "@/lib/services-data"
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Alert, Image, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native"
 import { Linking } from "react-native"
 import { useRouter } from "expo-router"
@@ -12,6 +13,7 @@ import { useRouter } from "expo-router"
 export default function BookingsScreen() {
     const router = useRouter()
     const { bookings, updateBooking, cancelBooking, darkMode, user } = useAppStore()
+    const migrateDoneRef = useRef(false)
     const [hiredJobs, setHiredJobs] = useState<any[]>([])
     const [loadingHiredJobs, setLoadingHiredJobs] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
@@ -24,6 +26,29 @@ export default function BookingsScreen() {
             fetchHiredJobs();
         }
     }, [currentUserId]);
+
+    // One-time migration: normalize booking item service names from canonical services-data
+    useEffect(() => {
+        if (migrateDoneRef.current) return
+        if (!bookings || bookings.length === 0) return
+        bookings.forEach((b: any) => {
+            try {
+                const svc = b.items?.[0]?.service
+                if (svc?.id) {
+                    const canonical = getServiceById(svc.id)
+                    if (canonical && canonical.name && svc.name !== canonical.name) {
+                        const newItems = b.items.map((it: any, idx: number) => idx === 0 ? { ...it, service: { ...it.service, name: canonical.name } } : it)
+                        if (updateBooking) updateBooking(b.id, { items: newItems })
+                    }
+                }
+            } catch (e) {
+                // ignore migration errors
+                console.warn('Booking name migration error', e)
+            }
+        })
+        migrateDoneRef.current = true
+    }, [bookings, updateBooking])
+
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -89,6 +114,43 @@ export default function BookingsScreen() {
         if (s === "completed") return darkMode ? "#1B5E20" : "#E8F5E9"
         if (s === "cancelled") return darkMode ? "#5C1A1A" : "#FFEBEE"
         return surfaceColor
+    }
+
+    const resolveServiceName = (booking: any) => {
+        const svc = booking.items?.[0]?.service
+        if (!svc) return "Service"
+
+        // Helper to clean up corrupted descriptions
+        const cleanName = (name: string): string => {
+            if (!name) return name
+            // Remove repeated "service booking" text
+            return name.replace(/\s*service\s+booking.*$/gi, "").trim()
+        }
+
+        // 1. Prefer canonical service by id if it's from services-data
+        if (svc.id && !svc.id.startsWith("bid-")) {
+            const canonical = getServiceById(svc.id)
+            if (canonical?.name) return canonical.name
+        }
+
+        // 2. Clean up and use provided name if it's meaningful and not corrupted
+        const cleanedName = cleanName(svc.name || "")
+        if (cleanedName && cleanedName !== "Deep Home Cleaning") return cleanedName
+
+        // 3. Try to guess from description/category by matching keywords against known services
+        const text = (svc.description || svc.name || booking.serviceCategory || "").toLowerCase()
+        const keywords = Array.from(new Set((text.match(/\w{4,}/g) || []).slice(0, 10)))
+        if (keywords.length > 0) {
+            const found = services.find((s) => {
+                const name = (s.name || "").toLowerCase()
+                const desc = (s.description || "").toLowerCase()
+                return keywords.some(k => name.includes(k) || desc.includes(k))
+            })
+            if (found) return found.name
+        }
+
+        // 4. Last resort - return cleaned name or fallback
+        return cleanedName || svc.category || "Service"
     }
 
     const handleCancelPress = (bookingId: string, bookingDate: string, bookingTime: string) => {
@@ -291,7 +353,7 @@ export default function BookingsScreen() {
                                         style={styles.bookingImage}
                                     />
                                     <View style={styles.bookingInfo}>
-                                        <Text style={styles.bookingService}>{booking.items?.[0]?.service?.name || "Service"}</Text>
+                                        <Text style={styles.bookingService} numberOfLines={2}>{resolveServiceName(booking)}</Text>
                                         <Text style={styles.bookingProvider}>by {providerName}</Text>
                                         <View style={[styles.statusBadge, { backgroundColor: getStatusBg(status) }]}>
                                             <Text style={[styles.statusText, { color: getStatusColor(status) }]}>

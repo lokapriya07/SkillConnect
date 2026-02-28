@@ -170,6 +170,12 @@ export default function CheckoutScreen({ onBack, onConfirm, params }: CheckoutSc
           // Determine if this is truly a bid flow (user submitted a custom bid amount)
           const hasBidAmount = bidAmount && bidAmount !== "" && parseFloat(bidAmount) > 0;
           
+          // Helper: clean up description names (remove repeated "service booking" text)
+          const cleanName = (desc: string | undefined): string => {
+            if (!desc) return "";
+            return desc.replace(/\s*service\s+booking.*$/gi, "").trim();
+          };
+          
           // Get payment method name from ID
           const paymentMethodName = paymentMethods.find(p => p.id === selectedPayment)?.name || "Cash on Service";
           
@@ -186,8 +192,8 @@ export default function CheckoutScreen({ onBack, onConfirm, params }: CheckoutSc
                   {
                     service: {
                       id: "bid-" + Date.now(),
-                      name: activeJob?.description || "Custom Service Request",
-                      description: activeJob?.description || "",
+                      name: cleanName(activeJob?.description) || "Custom Service Request",
+                      description: cleanName(activeJob?.description) || "",
                       price: subtotal,
                       duration: "N/A",
                       image: "",
@@ -198,7 +204,13 @@ export default function CheckoutScreen({ onBack, onConfirm, params }: CheckoutSc
                     quantity: 1,
                   },
                 ]
-              : cart,
+              : cart.map(item => ({
+                  ...item,
+                  service: {
+                    ...item.service,
+                    name: item.service.name || item.service.category || "Service",
+                  }
+                })),
             total: total,
             status: "confirmed" as const,
             date: selectedDate.toDateString(),
