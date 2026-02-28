@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification'); // Import the new model
 
-// In-memory store for push tokens (use database in production)
-let pushTokens = [];
+// Import notification helper to share push token storage
+const notificationHelper = require('../utils/notificationHelper');
 
 // --- 1. REGISTER PUSH TOKEN ---
 router.post('/register', async (req, res) => {
@@ -14,16 +14,8 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Missing required fields' });
         }
 
-        // Remove existing token for same user
-        pushTokens = pushTokens.filter(t => t.userId !== userId);
-
-        // Add new token
-        pushTokens.push({
-            userId,
-            userType,
-            expoPushToken,
-            createdAt: new Date()
-        });
+        // Use notification helper to register token
+        notificationHelper.registerPushToken(userId, userType, expoPushToken);
 
         res.json({ success: true, message: 'Token registered successfully' });
     } catch (error) {
@@ -36,7 +28,7 @@ router.post('/register', async (req, res) => {
 router.post('/unregister', async (req, res) => {
     try {
         const { userId } = req.body;
-        pushTokens = pushTokens.filter(t => t.userId !== userId);
+        notificationHelper.unregisterPushToken(userId);
         res.json({ success: true, message: 'Token unregistered successfully' });
     } catch (error) {
         console.error('Error unregistering push token:', error);
@@ -72,67 +64,17 @@ router.put('/:id/read', async (req, res) => {
 });
 
 // --- HELPER: CREATE & SEND NOTIFICATION ---
+// This function is kept for backward compatibility but uses the notification helper internally
 async function sendPushNotification(userId, title, body, data = {}, userModel = 'User') {
-    // 1. Save to Database
-    try {
-        await Notification.create({
-            userId,
-            userModel, // 'User' or 'Work'
-            type: data.type || 'system',
-            title,
-            message: body,
-            relatedId: data.jobId || null
-        });
-    } catch (dbError) {
-        console.error('Error saving notification to DB:', dbError);
-        // Continue to send push even if DB save fails
-    }
-
-    // 2. Send Push Notification (if token exists)
-    const userToken = pushTokens.find(t => t.userId === userId);
-
-    if (!userToken) {
-        console.log(`No push token found for user: ${userId}`);
-        return false;
-    }
-
-    const message = {
-        to: userToken.expoPushToken,
-        sound: 'default',
+    // Use notification helper which handles both DB storage and push
+    return await notificationHelper.sendNotification(
+        userId,
         title,
         body,
-        data: {
-            ...data,
-            channelId: 'chat-messages'
-        },
-        ios: {
-            sound: true,
-            badge: true
-        },
-        android: {
-            sound: true,
-            priority: 'high',
-            channelId: 'chat-messages'
-        }
-    };
-
-    try {
-        const response = await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(message),
-        });
-
-        const result = await response.json();
-        console.log('Push notification sent:', result);
-        return true;
-    } catch (error) {
-        console.error('Error sending push notification:', error);
-        return false;
-    }
+        data,
+        userModel,
+        data.jobId || null
+    );
 }
 
 router.sendPushNotification = sendPushNotification;

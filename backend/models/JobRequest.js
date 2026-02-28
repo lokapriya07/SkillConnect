@@ -44,7 +44,7 @@ const jobRequestSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['finding_workers', 'bidding', 'assigned', 'scheduled', 'in_progress', 'completed', 'cancelled', 'booked', 'hired'],
+      enum: ['finding_workers', 'bidding', 'assigned', 'scheduled', 'in_progress', 'paused', 'completed', 'cancelled', 'booked', 'hired'],
       default: 'finding_workers'
     },
 
@@ -100,6 +100,30 @@ const jobRequestSchema = new mongoose.Schema(
     paidAmount: {
       type: Number,
       default: 0
+    },
+
+    // Pause/Resume tracking
+    pauseReason: {
+      type: String,
+      default: null
+    },
+    pausedAt: {
+      type: Date,
+      default: null
+    },
+    resumedAt: {
+      type: Date,
+      default: null
+    },
+
+    // Cancellation tracking
+    cancellationReason: {
+      type: String,
+      default: null
+    },
+    cancelledAt: {
+      type: Date,
+      default: null
     }
   },
   { timestamps: true }

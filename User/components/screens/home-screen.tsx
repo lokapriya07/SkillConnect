@@ -740,16 +740,14 @@ export default function HomeScreen() {
 
   const fetchUserNotifications = useCallback(async () => {
     try {
-      const userStr = await AsyncStorage.getItem('user');
-      if (!userStr) return;
-      const userObj = JSON.parse(userStr);
-      const userId = userObj._id || userObj.id;
+      // Use user from Zustand store instead of AsyncStorage
+      const userId = user?._id || user?.id;
       if (!userId) return;
       const res = await fetch(`${API_URL_NOTI}/api/notifications/${userId}`);
       const data = await res.json();
       if (data.success) setNotifications(data.notifications);
     } catch (e) { /* silent fail */ }
-  }, []);
+  }, [user]);
 
   const markNotiRead = async (id: string) => {
     try {

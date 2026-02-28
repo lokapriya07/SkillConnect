@@ -14,7 +14,21 @@ const notificationSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['hired', 'status_update', 'system', 'payment']
+        enum: [
+            'hired', 
+            'status_update', 
+            'system', 
+            'payment',
+            // Worker action notification types
+            'bid_submitted',
+            'worker_accepted',
+            'worker_on_the_way',
+            'service_started',
+            'service_paused',
+            'service_resumed',
+            'job_completed',
+            'job_cancelled'
+        ]
     },
     title: {
         type: String,

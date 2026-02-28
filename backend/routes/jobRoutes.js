@@ -74,9 +74,12 @@ const fs = require('fs');
 
 const JobRequest = require('../models/JobRequest');
 const Work = require('../models/Work');
+const User = require('../models/User');
 // ✅ Import the new multimodal function name
 const { extractSkillsFromMultimodal } = require('../utils/aiExtractor');
 const { sendPushNotification } = require('./notificationRoutes');
+// Import notification helper
+const notificationHelper = require('../utils/notificationHelper');
 
 const storage = multer.diskStorage({
     destination: 'uploads/',
@@ -325,6 +328,22 @@ router.post('/submit-bid', async (req, res) => {
             // Rollback the standalone bid if job not found
             await Bid.findByIdAndDelete(standaloneBid._id);
             return res.status(404).json({ success: false, error: "Job not found" });
+        }
+
+        // 3. Notify User about the new bid
+        try {
+            // Get job owner details
+            const jobOwner = await User.findById(job.userId);
+            const workerName = workProfile.name || 'A worker';
+            const serviceName = job.serviceName || 'your service';
+            
+            if (jobOwner) {
+                // Use the notification helper for better notification handling
+                await notificationHelper.notifyBidSubmitted(job, workerName, bidAmount);
+            }
+        } catch (notifyError) {
+            console.error('Error sending bid notification:', notifyError);
+            // Don't fail the request if notification fails
         }
 
         res.status(200).json({
@@ -834,17 +853,17 @@ router.put('/worker/:jobId/accept', async (req, res) => {
         );
         if (!job) return res.status(404).json({ success: false, error: "Job not found" });
 
-        // Notify User
+        // Notify User - Job Accepted
         if (job.userId) {
             const serviceName = job.serviceName || 'your service';
             const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || 'Your worker';
-            await sendPushNotification(
-                job.userId,
-                "✅ Worker Accepted Your Booking!",
-                `${workerName} accepted the booking for ${serviceName} and is on the way.`,
-                { type: 'worker_accepted', jobId: job._id },
-                'User'
-            );
+            const scheduledTime = job.scheduledTime || null;
+            
+            // Use notification helper
+            await notificationHelper.notifyJobAccepted(job, workerName, scheduledTime);
+            
+            // Also notify that worker is on the way (since status is 'scheduled')
+            await notificationHelper.notifyWorkerOnTheWay(job, workerName);
         }
 
         res.status(200).json({ success: true, message: "Job accepted successfully", job });
@@ -865,15 +884,12 @@ router.put('/worker/:jobId/start', async (req, res) => {
 
         if (!job) return res.status(404).json({ success: false, error: "Job not found" });
 
-        // Notify User
+        // Notify User - Service Started
         if (job.userId) {
-            await sendPushNotification(
-                job.userId,
-                "Service Started",
-                "Your worker has started the service.",
-                { type: 'status_update', jobId: job._id },
-                'User'
-            );
+            const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || 'The worker';
+            
+            // Use notification helper
+            await notificationHelper.notifyServiceStarted(job, workerName);
         }
 
         res.status(200).json({ success: true, message: "Job started successfully", job });
@@ -896,15 +912,12 @@ router.put('/worker/:jobId/complete', async (req, res) => {
             return res.status(404).json({ success: false, error: "Job not found" });
         }
 
-        // Notify User
+        // Notify User - Job Completed with rating prompt
         if (job.userId) {
-            await sendPushNotification(
-                job.userId,
-                "Service Completed",
-                "Your service has been marked as completed.",
-                { type: 'status_update', jobId: job._id },
-                'User'
-            );
+            const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || 'The worker';
+            
+            // Use notification helper with rating prompt
+            await notificationHelper.notifyJobCompleted(job, workerName);
         }
 
         res.status(200).json({
@@ -915,6 +928,130 @@ router.put('/worker/:jobId/complete', async (req, res) => {
     } catch (error) {
         console.error('Complete Job Error:', error);
         res.status(500).json({ success: false, error: "Failed to complete job" });
+    }
+});
+
+// 4. PAUSE JOB - Worker pauses the service
+router.put('/worker/:jobId/pause', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const { reason } = req.body;
+        
+        const job = await JobRequest.findById(jobId);
+        
+        if (!job) {
+            return res.status(404).json({ success: false, error: "Job not found" });
+        }
+
+        // Check if job is in progress
+        if (job.status !== 'in_progress') {
+            return res.status(400).json({ success: false, error: "Job is not in progress" });
+        }
+
+        // Update job to paused status
+        job.status = 'paused';
+        job.pauseReason = reason || null;
+        job.pausedAt = new Date();
+        await job.save();
+
+        // Notify User - Service Paused
+        if (job.userId) {
+            const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || 'The worker';
+            
+            // Use notification helper
+            await notificationHelper.notifyServicePaused(job, workerName, reason);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Job paused successfully",
+            job
+        });
+    } catch (error) {
+        console.error('Pause Job Error:', error);
+        res.status(500).json({ success: false, error: "Failed to pause job" });
+    }
+});
+
+// 5. RESUME JOB - Worker resumes the service
+router.put('/worker/:jobId/resume', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        
+        const job = await JobRequest.findById(jobId);
+        
+        if (!job) {
+            return res.status(404).json({ success: false, error: "Job not found" });
+        }
+
+        // Check if job is paused
+        if (job.status !== 'paused') {
+            return res.status(400).json({ success: false, error: "Job is not paused" });
+        }
+
+        // Update job back to in_progress
+        job.status = 'in_progress';
+        job.resumedAt = new Date();
+        await job.save();
+
+        // Notify User - Service Resumed
+        if (job.userId) {
+            const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || 'The worker';
+            
+            // Use notification helper
+            await notificationHelper.notifyServiceResumed(job, workerName);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Job resumed successfully",
+            job
+        });
+    } catch (error) {
+        console.error('Resume Job Error:', error);
+        res.status(500).json({ success: false, error: "Failed to resume job" });
+    }
+});
+
+// 6. CANCEL JOB - Worker cancels the job
+router.put('/worker/:jobId/cancel', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const { reason } = req.body;
+        
+        const job = await JobRequest.findById(jobId);
+        
+        if (!job) {
+            return res.status(404).json({ success: false, error: "Job not found" });
+        }
+
+        // Check if job can be cancelled (not already completed)
+        if (job.status === 'completed' || job.status === 'cancelled') {
+            return res.status(400).json({ success: false, error: "Job cannot be cancelled" });
+        }
+
+        // Update job to cancelled status
+        job.status = 'cancelled';
+        job.cancellationReason = reason || null;
+        job.cancelledAt = new Date();
+        await job.save();
+
+        // Notify User - Job Cancelled
+        if (job.userId) {
+            const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || 'The worker';
+            
+            // Use notification helper
+            await notificationHelper.notifyJobCancelled(job, workerName, reason);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Job cancelled successfully",
+            job
+        });
+    } catch (error) {
+        console.error('Cancel Job Error:', error);
+        res.status(500).json({ success: false, error: "Failed to cancel job" });
     }
 });
 
