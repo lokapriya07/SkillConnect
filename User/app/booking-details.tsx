@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, StatusBar, SafeAreaView } from "react-native"
+import React, { useEffect, useState, useCallback } from "react"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, StatusBar, SafeAreaView, Alert } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
@@ -22,71 +22,103 @@ const STATUS_STEPS = [
 
 export default function BookingDetailsScreen() {
   const router = useRouter()
-  const { bookingId } = useLocalSearchParams<{ bookingId: string }>()
+  const { bookingId, jobId: paramJobId } = useLocalSearchParams<{ bookingId: string, jobId?: string }>()
   const darkMode = useAppStore(state => state.darkMode)
   const storeBooking = useAppStore(s => s.bookings.find(b => b.id === bookingId))
 
   const [liveJob, setLiveJob] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
-  // Get the correct job ID: prefer jobId from booking (for assigned jobs), fallback to bookingId
-  const getJobIdToFetch = () => {
-    // First check if the booking has a linked jobId from assign-worker
+  // Get the correct job ID: prefer jobId param, then from booking, then extract from bookingId
+  const getJobIdToFetch = useCallback(() => {
+    // First: Check if jobId was passed directly as a parameter (most reliable)
+    if (paramJobId) {
+      console.log('Using jobId from params:', paramJobId);
+      return paramJobId;
+    }
+    
+    // Second: Check if the booking has a linked jobId from assign-worker
     if (storeBooking?.jobId) {
-      console.log('Using jobId from booking:', storeBooking.jobId);
+      console.log('Using jobId from booking store:', storeBooking.jobId);
       return storeBooking.jobId;
     }
     
-    // Otherwise, strip prefixes from the bookingId to get the job ID
+    // Third: Strip prefixes from the bookingId to get the job ID
+    // This handles cases like: hired_123, assigned_456, booking_789
     let cleanId = typeof bookingId === 'string' ? bookingId : '';
     cleanId = cleanId.replace(/^hired_/, '').replace(/^assigned_/, '').replace(/^booking_/, '');
-    console.log('Using cleaned bookingId as jobId:', cleanId);
+    
+    // Also handle case where bookingId might be a MongoDB ObjectId directly
+    if (cleanId && cleanId.length >= 20) {
+      console.log('Using cleaned bookingId as jobId:', cleanId);
+      return cleanId;
+    }
+    
+    console.log('Using raw bookingId as jobId:', cleanId);
     return cleanId;
-  };
+  }, [bookingId, paramJobId, storeBooking?.jobId]);
 
-  useEffect(() => {
-    let interval: ReturnType<typeof setTimeout>
-
-    const fetchStatus = async () => {
-      try {
-        // Get the correct job ID (from booking.jobId or from cleaned bookingId)
-        const cleanId = getJobIdToFetch();
-        
-        console.log('Fetching job status for ID:', cleanId, 'original:', bookingId);
-        
-        if (!cleanId || cleanId.length < 10) {
-          console.log('Invalid job ID, skipping fetch');
-          return;
-        }
-        
-        // Use the correct endpoint that actually exists in the backend
-        const res = await fetch(`${API_URL}/api/jobs/get-job/${cleanId}`);
-        const data = await res.json();
-        
-        console.log('Job fetch response:', data);
-        
-        if (data.success && data.job) {
-          // Log the job status for debugging
-          console.log('Job status from API:', data.job.status);
-          console.log('Job assignedWorker:', data.job.assignedWorker);
-          console.log('Job hiredWorker:', data.job.hiredWorker);
-          
-          setLiveJob(data.job);
-          setIsSyncing(true);
-        } else {
-          console.log('Job not found or fetch failed');
-          setIsSyncing(false);
-        }
-      } catch (e) { 
-        console.error('Error fetching job status:', e);
-        setIsSyncing(false); 
+  // Fetch job status from backend
+  const fetchStatus = useCallback(async () => {
+    try {
+      // Get the correct job ID
+      const jobIdToFetch = getJobIdToFetch();
+      
+      if (!jobIdToFetch || jobIdToFetch.length < 10) {
+        console.log('Invalid job ID, skipping fetch:', jobIdToFetch);
+        setError('Invalid booking ID');
+        setIsSyncing(false);
+        return;
       }
-    };
+      
+      // Use the get-job endpoint to fetch full job details
+      const res = await fetch(`${API_URL}/api/jobs/get-job/${jobIdToFetch}`);
+      
+      if (!res.ok) {
+        throw new Error('Failed to fetch job');
+      }
+      
+      const data = await res.json();
+      
+      if (data.success && data.job) {
+        // Log the job status for debugging
+        console.log('Job status from API:', data.job.status);
+        console.log('Job ID:', data.job._id);
+        console.log('Job hiredWorker:', data.job.hiredWorker);
+        console.log('Job assignedWorker:', data.job.assignedWorker);
+        
+        setLiveJob(data.job);
+        setIsSyncing(true);
+        setError(null);
+        setLastUpdated(new Date());
+      } else {
+        console.log('Job not found or fetch failed:', data);
+        setError('Job not found');
+        setIsSyncing(false);
+      }
+    } catch (e) { 
+      console.error('Error fetching job status:', e);
+      setError('Failed to connect to server');
+      setIsSyncing(false); 
+    }
+  }, [getJobIdToFetch]);
+
+  // Initial fetch and polling
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>
+
+    // Initial fetch
     fetchStatus();
+    
     // Poll every 5 seconds for status updates
     interval = setInterval(fetchStatus, 5000);
-    return () => clearInterval(interval);
-  }, [bookingId]);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [fetchStatus]);
 
   const displayData = liveJob || storeBooking || {};
   
@@ -116,13 +148,32 @@ export default function BookingDetailsScreen() {
   
   const currentStatus = statusMap[rawStatus?.toLowerCase()] || 'assigned';
   const currentStepIndex = STATUS_STEPS.findIndex(s => s.key === currentStatus);
+  
   // Prefer hiredWorker name, then assignedWorker name
   const workerName = displayData?.hiredWorker?.workerName ||
     displayData?.assignedWorker?.workerName ||
     displayData?.assignedWorker?.name ||
+    displayData?.worker?.name ||
     "Professional";
+    
   const initials = workerName.split(' ').map((n: string) => n[0]).join('').toUpperCase();
   const totalDisplay = displayData?.totalAmount || displayData?.budget || displayData?.total || '0';
+
+  // Get status description based on current status
+  const getStatusDescription = () => {
+    switch (currentStatus) {
+      case 'assigned':
+        return 'Worker has been assigned to your job';
+      case 'scheduled':
+        return 'Worker is on the way to your location';
+      case 'in_progress':
+        return 'Service is currently in progress';
+      case 'completed':
+        return 'Service has been completed';
+      default:
+        return 'Waiting for update';
+    }
+  };
 
   const styles = getStyles(darkMode);
 
@@ -143,8 +194,8 @@ export default function BookingDetailsScreen() {
               <Text style={styles.liveLabel}>{isSyncing ? 'LIVE' : 'OFFLINE'}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.navBtn}>
-            <Ionicons name="ellipsis-vertical" size={20} color={darkMode ? "#FFF" : "#1A1C1E"} />
+          <TouchableOpacity style={styles.navBtn} onPress={fetchStatus}>
+            <Ionicons name="refresh" size={20} color={darkMode ? "#FFF" : "#1A1C1E"} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -153,6 +204,27 @@ export default function BookingDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
+        {/* Error Message */}
+        {error && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="warning" size={20} color="#FF6B6B" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={fetchStatus} style={styles.retryButton}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Last Updated */}
+        {lastUpdated && !error && (
+          <View style={styles.lastUpdatedContainer}>
+            <Ionicons name="time-outline" size={14} color="#94A3B8" />
+            <Text style={styles.lastUpdatedText}>
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </Text>
+          </View>
+        )}
+
         {/* 2. MAP VIEW (Now below the header) */}
         <View style={styles.mapWrapper}>
           <MapView
@@ -192,7 +264,11 @@ export default function BookingDetailsScreen() {
                   </View>
                   <View style={styles.stepTextCol}>
                     <Text style={[styles.stepLabel, isActive && styles.labelActive]}>{step.label}</Text>
-                    {isCurrent && <Text style={styles.currentDesc}>In progress • Updating now</Text>}
+                    {isCurrent && (
+                      <Text style={styles.currentDesc}>
+                        {getStatusDescription()}
+                      </Text>
+                    )}
                   </View>
                 </View>
               )
@@ -200,7 +276,7 @@ export default function BookingDetailsScreen() {
           </View>
 
           {/* WORKER BADGE - shows for both assignedWorker and hiredWorker */}
-          {(displayData?.assignedWorker || displayData?.hiredWorker) && (
+          {(displayData?.assignedWorker || displayData?.hiredWorker || workerName) && (
             <View style={styles.workerBadgeCard}>
               <View style={styles.initialsCircle}>
                 <Text style={styles.initialsText}>{initials}</Text>
@@ -220,6 +296,30 @@ export default function BookingDetailsScreen() {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* JOB DETAILS */}
+          <View style={styles.card}>
+            <Text style={styles.cardHeader}>JOB DETAILS</Text>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Service</Text>
+              <Text style={styles.detailValue}>
+                {displayData?.serviceName || displayData?.title || 'Service Booking'}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Status</Text>
+              <Text style={[styles.detailValue, { color: Colors.primary }]}>
+                {currentStatus === 'assigned' ? 'Assigned' : 
+                 currentStatus === 'scheduled' ? 'On the Way' :
+                 currentStatus === 'in_progress' ? 'In Progress' :
+                 currentStatus === 'completed' ? 'Completed' : currentStatus}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Booking ID</Text>
+              <Text style={styles.detailValue}>#{bookingId?.replace(/^hired_/, '').replace(/^assigned_/, '').replace(/^booking_/, '') || 'N/A'}</Text>
+            </View>
+          </View>
 
           {/* PAYMENT SUMMARY */}
           <View style={styles.card}>
@@ -258,6 +358,33 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
   pulseDot: { width: 6, height: 6, borderRadius: 3 },
   navBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 
+  // Error and status
+  errorContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#FFEBEE', 
+    marginHorizontal: 16, 
+    marginTop: 10,
+    padding: 12, 
+    borderRadius: 12 
+  },
+  errorText: { flex: 1, marginLeft: 8, color: '#C62828', fontSize: 13 },
+  retryButton: { 
+    backgroundColor: '#C62828', 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 6 
+  },
+  retryText: { color: 'white', fontSize: 12, fontWeight: '600' },
+  
+  lastUpdatedContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    paddingVertical: 8 
+  },
+  lastUpdatedText: { fontSize: 11, color: '#94A3B8', marginLeft: 4 },
+
   // Map Layout
   mapWrapper: { height: 240, width: '100%', overflow: 'hidden' },
   map: { flex: 1 },
@@ -290,6 +417,10 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   ratingText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
   callFab: { width: 50, height: 50, borderRadius: 16, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center', elevation: 4 },
+
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  detailLabel: { fontSize: 14, color: '#94A3B8' },
+  detailValue: { fontSize: 14, fontWeight: '600', color: darkMode ? "#FFF" : "#1E293B" },
 
   paymentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLabel: { fontSize: 15, fontWeight: '700', color: '#64748B' },

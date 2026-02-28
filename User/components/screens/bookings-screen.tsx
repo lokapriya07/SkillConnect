@@ -357,7 +357,10 @@ export default function BookingsScreen() {
                                 onPress={() =>
                                     router.push({
                                         pathname: "/booking-details",
-                                        params: { bookingId: booking.id },
+                                        params: { 
+                                            bookingId: booking.id,
+                                            jobId: booking.jobId || booking.id.replace(/^hired_/, '').replace(/^assigned_/, '').replace(/^booking_/, '')
+                                        },
                                     })
                                 }
                             >
