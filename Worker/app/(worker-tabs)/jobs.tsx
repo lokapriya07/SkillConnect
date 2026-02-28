@@ -14,8 +14,10 @@ import {
   Alert,
   Linking,
   Image,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Audio, AVPlaybackStatus } from "expo-av";
 import {
   Clock,
   DollarSign,
@@ -35,6 +37,9 @@ import {
   FileText,
   PlayCircle,
   Mic,
+  Play,
+  Pause,
+  ZoomIn,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -116,6 +121,21 @@ export default function ActiveJobsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Image preview modal state
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
+
+  // Audio playback state
+  const [audioSound, setAudioSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [currentAudioUri, setCurrentAudioUri] = useState<string | null>(null);
+
+  // Map preview modal state
+  const [mapPreviewVisible, setMapPreviewVisible] = useState(false);
+
   const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.9:5000";
 
   // --- Fetch Data from Backend ---
@@ -149,6 +169,15 @@ export default function ActiveJobsPage() {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [fetchJobs]);
+
+  // Audio cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioSound) {
+        audioSound.unloadAsync();
+      }
+    };
+  }, [audioSound]);
 
   const onRefresh = useCallback(() => fetchJobs(true), [fetchJobs]);
 
@@ -263,6 +292,104 @@ export default function ActiveJobsPage() {
     return `${API_URL}/${path.replace(/^\//, "")}`;
   };
 
+  // --- Image Preview Functions ---
+  const openImagePreview = (url: string) => {
+    setPreviewImageUrl(url);
+    setImageZoom(1);
+    setImagePreviewVisible(true);
+  };
+
+  const closeImagePreview = () => {
+    setImagePreviewVisible(false);
+    setPreviewImageUrl(null);
+    setImageZoom(1);
+  };
+
+  const toggleZoom = () => {
+    setImageZoom(prev => prev === 1 ? 2 : 1);
+  };
+
+  // --- Audio Playback Functions ---
+  const playAudio = async (uri: string) => {
+    try {
+      // If same audio is playing, toggle play/pause
+      if (currentAudioUri === uri && audioSound) {
+        if (isPlaying) {
+          await audioSound.pauseAsync();
+          setIsPlaying(false);
+        } else {
+          await audioSound.playAsync();
+          setIsPlaying(true);
+        }
+        return;
+      }
+
+      // Stop current audio if different
+      if (audioSound) {
+        await audioSound.unloadAsync();
+      }
+
+      // Configure audio mode
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+
+      // Load and play new audio
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true },
+        (status: AVPlaybackStatus) => {
+          if (status.isLoaded) {
+            setAudioProgress(status.positionMillis);
+            setAudioDuration(status.durationMillis || 0);
+            if (status.didJustFinish) {
+              setIsPlaying(false);
+              setAudioProgress(0);
+            }
+          }
+        }
+      );
+
+      setAudioSound(sound);
+      setCurrentAudioUri(uri);
+      setIsPlaying(true);
+    } catch (error) {
+      console.error("Audio playback error:", error);
+      Alert.alert("Error", "Failed to play audio");
+    }
+  };
+
+  const pauseAudio = async () => {
+    if (audioSound) {
+      await audioSound.pauseAsync();
+      setIsPlaying(false);
+    }
+  };
+
+  const stopAudio = async () => {
+    if (audioSound) {
+      await audioSound.stopAsync();
+      setIsPlaying(false);
+      setAudioProgress(0);
+    }
+  };
+
+  // --- Map Preview Functions ---
+  const openMapPreview = () => {
+    if (selectedJob?.latitude && selectedJob?.longitude) {
+      setMapPreviewVisible(true);
+    } else {
+      Alert.alert("No Location", "This job doesn't have location coordinates");
+    }
+  };
+
+  const closeMapPreview = () => {
+    setMapPreviewVisible(false);
+  };
+
   // --- DYNAMIC DATA MAPPING ---
   const displayAssignedJobs = useMemo(() => {
     const toTitleCase = (s: string) => s.replace(/\b\w/g, c => c.toUpperCase());
@@ -271,6 +398,42 @@ export default function ActiveJobsPage() {
       if (job.skillsRequired?.[0]) return toTitleCase(job.skillsRequired[0]);
       if (job.description?.trim()) return toTitleCase(job.description.trim().split(/\s+/).slice(0, 5).join(' '));
       return 'Service Booking';
+    };
+
+    // Function to resolve address with multiple fallbacks
+    const resolveAddress = (job: any) => {
+      // Check job address fields in order of priority
+      if (job.fullAddress?.trim()) return job.fullAddress.trim();
+      if (job.address?.trim()) return job.address.trim();
+      
+      // Build address from city/state if available
+      const parts = [];
+      if (job.address?.trim()) parts.push(job.address.trim());
+      if (job.city?.trim()) parts.push(job.city.trim());
+      if (job.state?.trim()) parts.push(job.state.trim());
+      
+      if (parts.length > 0) return parts.join(', ');
+      
+      // Check user address as fallback
+      const userAddress = job.userId?.fullAddress || job.userId?.address;
+      if (userAddress?.trim()) return userAddress.trim();
+      
+      const userParts = [];
+      if (job.userId?.address?.trim()) userParts.push(job.userId.address.trim());
+      if (job.userId?.city?.trim()) userParts.push(job.userId.city.trim());
+      if (job.userId?.state?.trim()) userParts.push(job.userId.state.trim());
+      
+      if (userParts.length > 0) return userParts.join(', ');
+      
+      // If coordinates exist, return coordinates as fallback
+      const lat = job.location?.coordinates?.[1];
+      const lng = job.location?.coordinates?.[0];
+      if (lat && lng) {
+        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      }
+      
+      // Return "No Address" only if nothing is available
+      return "No Address";
     };
 
     return assignedJobs.map((job: any) => ({
@@ -293,7 +456,7 @@ export default function ActiveJobsPage() {
       hiredAmount: job.hiredAmount || null,
       workerStatus: job.workerStatus || 'Assigned',
       progress: job.status === "in_progress" ? 50 : job.status === "completed" ? 100 : 0,
-      address: job.address || "Address not available",
+      address: resolveAddress(job),
       latitude: job.location?.coordinates?.[1],
       longitude: job.location?.coordinates?.[0],
       milestones: [{ id: "m1", title: "Service Completion", amount: job.totalAmount || job.budget, status: job.status === 'completed' ? 'paid' as const : 'pending' as const }],
@@ -382,7 +545,7 @@ export default function ActiveJobsPage() {
               currentDisplayJobs.map((job) => {
                 const ServiceIcon = getServiceIcon(job.title);
                 const serviceColor = getServiceColor(job.title);
-                const hasAddress = job.address && job.address !== "Address not available";
+                const hasAddress = job.address && job.address !== "Address not available" && job.address !== "No Address";
                 return (
                   <View key={job.id} style={styles.card}>
                     <View style={styles.cardHeader}>
@@ -414,13 +577,17 @@ export default function ActiveJobsPage() {
                       </View>
                       <View style={styles.metaItem}>
                         <MapPin size={14} color="#EA4335" />
-                        <Text style={styles.metaLabelText} numberOfLines={1}>
-                          {hasAddress ? job.address.split(',')[0] : "No address"}
-                        </Text>
-                        {hasAddress && (
-                          <TouchableOpacity onPress={() => openInMaps(job)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Navigation size={14} color="#4285F4" />
-                          </TouchableOpacity>
+                        {hasAddress ? (
+                          <>
+                            <Text style={styles.metaLabelText} numberOfLines={1}>
+                              {job.address.split(',')[0]}
+                            </Text>
+                            <TouchableOpacity onPress={() => openInMaps(job)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Navigation size={14} color="#4285F4" />
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <Text style={styles.metaLabelText}>No Address</Text>
                         )}
                       </View>
                     </View>
@@ -500,7 +667,7 @@ export default function ActiveJobsPage() {
               {/* ── Service Address ── */}
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Service Address</Text>
-                {selectedJob?.address && selectedJob.address !== "Address not available" ? (
+                {selectedJob?.address && selectedJob.address !== "No Address" ? (
                   <TouchableOpacity
                     style={styles.addressCard}
                     onPress={() => selectedJob && openInMaps(selectedJob)}
@@ -509,18 +676,61 @@ export default function ActiveJobsPage() {
                     <View style={styles.addressIconWrap}>
                       <MapPin size={18} color="#EA4335" />
                     </View>
-                    <Text style={styles.addressText}>{selectedJob.address}</Text>
-                    <View style={styles.navigateBtn}>
-                      <Navigation size={16} color="#fff" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.addressText}>{selectedJob.address}</Text>
+                      {selectedJob.latitude && selectedJob.longitude && (
+                        <Text style={styles.coordinatesText}>
+                          📍 {selectedJob.latitude.toFixed(4)}, {selectedJob.longitude.toFixed(4)}
+                        </Text>
+                      )}
                     </View>
+                    <TouchableOpacity 
+                      style={styles.navigateBtn} 
+                      onPress={() => selectedJob && openInMaps(selectedJob)}
+                    >
+                      <Navigation size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                ) : selectedJob?.latitude && selectedJob?.longitude ? (
+                  <TouchableOpacity
+                    style={styles.addressCard}
+                    onPress={() => selectedJob && openInMaps(selectedJob)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.addressIconWrap}>
+                      <MapPin size={18} color="#EA4335" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.addressText}>Location Coordinates</Text>
+                      <Text style={styles.coordinatesText}>
+                        📍 {selectedJob.latitude.toFixed(6)}, {selectedJob.longitude.toFixed(6)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.navigateBtn} 
+                      onPress={() => selectedJob && openInMaps(selectedJob)}
+                    >
+                      <Navigation size={16} color="#fff" />
+                    </TouchableOpacity>
                   </TouchableOpacity>
                 ) : (
                   <View style={[styles.addressCard, { opacity: 0.5 }]}>
                     <MapPin size={18} color="#94a3b8" />
                     <Text style={[styles.addressText, { color: "#94a3b8", marginLeft: 8 }]}>
-                      Address not available
+                      No Address
                     </Text>
                   </View>
+                )}
+
+                {/* Map Preview Button */}
+                {(selectedJob?.latitude && selectedJob?.longitude) && (
+                  <TouchableOpacity 
+                    style={styles.mapPreviewBtn}
+                    onPress={openMapPreview}
+                  >
+                    <Ionicons name="map" size={18} color="#2563eb" />
+                    <Text style={styles.mapPreviewText}>View on Map</Text>
+                  </TouchableOpacity>
                 )}
               </View>
 
@@ -549,7 +759,7 @@ export default function ActiveJobsPage() {
                       const imgUrl = getMediaUrl(selectedJob.originalJob.imagePath);
                       return imgUrl ? (
                         <TouchableOpacity
-                          onPress={() => Linking.openURL(imgUrl)}
+                          onPress={() => openImagePreview(imgUrl)}
                           style={styles.mediaThumbnailWrap}
                           activeOpacity={0.85}
                         >
@@ -589,20 +799,34 @@ export default function ActiveJobsPage() {
                     {/* Audio Link */}
                     {selectedJob.originalJob.audioPath && (() => {
                       const audUrl = getMediaUrl(selectedJob.originalJob.audioPath);
+                      const isCurrentAudio = currentAudioUri === audUrl;
+                      const progress = audioDuration > 0 ? (audioProgress / audioDuration) * 100 : 0;
+                      
                       return audUrl ? (
-                        <TouchableOpacity
-                          style={styles.mediaLinkCard}
-                          onPress={() => Linking.openURL(audUrl)}
-                        >
-                          <View style={[styles.mediaLinkIcon, { backgroundColor: "#f0fdf4" }]}>
-                            <Mic size={20} color="#16a34a" />
+                        <View style={styles.audioPlayerContainer}>
+                          <TouchableOpacity
+                            style={styles.audioPlayBtn}
+                            onPress={() => playAudio(audUrl)}
+                          >
+                            {isCurrentAudio && isPlaying ? (
+                              <Pause size={20} color="#fff" />
+                            ) : (
+                              <Play size={20} color="#fff" />
+                            )}
+                          </TouchableOpacity>
+                          <View style={styles.audioInfo}>
+                            <Text style={styles.audioTitle}>Audio Recording</Text>
+                            <View style={styles.audioProgressBar}>
+                              <View style={[styles.audioProgressFill, { width: `${progress}%` }]} />
+                            </View>
+                            <Text style={styles.audioTime}>
+                              {isCurrentAudio 
+                                ? `${Math.floor(audioProgress / 1000 / 60)}:${String(Math.floor((audioProgress / 1000) % 60)).padStart(2, '0')} / ${Math.floor(audioDuration / 1000 / 60)}:${String(Math.floor((audioDuration / 1000) % 60)).padStart(2, '0')}`
+                                : "Tap to play"
+                              }
+                            </Text>
                           </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.mediaLinkTitle}>Audio Recording</Text>
-                            <Text style={styles.mediaLinkSub}>Tap to play audio</Text>
-                          </View>
-                          <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                        </TouchableOpacity>
+                        </View>
                       ) : null;
                     })()}
                   </View>
@@ -691,6 +915,86 @@ export default function ActiveJobsPage() {
                 </TouchableOpacity>
               )}
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ===================== IMAGE PREVIEW MODAL ===================== */}
+      <Modal visible={imagePreviewVisible} transparent animationType="fade">
+        <View style={styles.imagePreviewBackdrop}>
+          <View style={styles.imagePreviewContent}>
+            {/* Controls */}
+            <View style={styles.imagePreviewControls}>
+              <TouchableOpacity 
+                style={styles.imagePreviewCloseBtn} 
+                onPress={closeImagePreview}
+              >
+                <X size={20} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.imagePreviewZoomBtn} 
+                onPress={toggleZoom}
+              >
+                <ZoomIn size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Image */}
+            {previewImageUrl && (
+              <Image
+                source={{ uri: previewImageUrl }}
+                style={[
+                  styles.previewImage,
+                  { transform: [{ scale: imageZoom }] }
+                ]}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ===================== MAP PREVIEW MODAL ===================== */}
+      <Modal visible={mapPreviewVisible} transparent animationType="fade">
+        <View style={styles.mapPreviewBackdrop}>
+          <View style={styles.mapPreviewContent}>
+            {/* Header */}
+            <View style={styles.mapPreviewHeader}>
+              <Text style={styles.mapPreviewTitle}>Job Location</Text>
+              <TouchableOpacity 
+                style={styles.mapPreviewCloseBtn} 
+                onPress={closeMapPreview}
+              >
+                <X size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Map Placeholder with Location Info */}
+            <View style={styles.mapPreviewBody}>
+              <View style={styles.mapPlaceholder}>
+                <MapPin size={48} color="#EA4335" />
+                <Text style={styles.mapPlaceholderText}>
+                  {selectedJob?.address || "Location coordinates available"}
+                </Text>
+                {selectedJob?.latitude && selectedJob?.longitude && (
+                  <Text style={[styles.mapPlaceholderText, { marginTop: 8, fontSize: 12 }]}>
+                    📍 {selectedJob.latitude.toFixed(6)}, {selectedJob.longitude.toFixed(6)}
+                  </Text>
+                )}
+              </View>
+            </View>
+            
+            {/* Navigate Button */}
+            <TouchableOpacity 
+              style={styles.mapNavigateBtn}
+              onPress={() => {
+                closeMapPreview();
+                selectedJob && openInMaps(selectedJob);
+              }}
+            >
+              <Navigation size={20} color="#fff" />
+              <Text style={styles.mapNavigateBtnText}>Open in Google Maps</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -786,7 +1090,10 @@ const styles = StyleSheet.create({
   addressCard: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0" },
   addressIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#fee2e2", alignItems: "center", justifyContent: "center" },
   addressText: { fontSize: 14, color: "#0f172a", flex: 1, lineHeight: 20 },
+  coordinatesText: { fontSize: 11, color: "#64748b", marginTop: 4 },
   navigateBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#2563eb", alignItems: "center", justifyContent: "center" },
+  mapPreviewBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#eff6ff", padding: 12, borderRadius: 10, marginTop: 10, borderWidth: 1, borderColor: "#bfdbfe" },
+  mapPreviewText: { color: "#2563eb", fontSize: 14, fontWeight: "600" },
 
   // ── Description ──
   descriptionText: { fontSize: 14, color: "#374151", lineHeight: 22, backgroundColor: "#f8fafc", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#e2e8f0" },
@@ -814,4 +1121,33 @@ const styles = StyleSheet.create({
   secondaryBtnText: { fontWeight: "600", color: "#0f172a" },
   primaryBtn: { flex: 2, padding: 12, borderRadius: 10, flexDirection: "row", justifyContent: "center", alignItems: "center" },
   primaryBtnText: { color: "#fff", fontWeight: "600" },
+
+  // ── Image Preview Modal ──
+  imagePreviewBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)" },
+  imagePreviewContent: { flex: 1, justifyContent: "center", alignItems: "center" },
+  imagePreviewControls: { position: "absolute", top: 50, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, zIndex: 10 },
+  imagePreviewCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  imagePreviewZoomBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  previewImage: { width: Dimensions.get("window").width, height: Dimensions.get("window").height * 0.7, resizeMode: "contain" },
+
+  // ── Audio Player ──
+  audioPlayerContainer: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#f0fdf4", padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: "#bbf7d0" },
+  audioPlayBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#16a34a", alignItems: "center", justifyContent: "center" },
+  audioInfo: { flex: 1 },
+  audioTitle: { fontSize: 14, fontWeight: "600", color: "#0f172a" },
+  audioProgressBar: { height: 4, backgroundColor: "#e2e8f0", borderRadius: 2, marginTop: 6, overflow: "hidden" },
+  audioProgressFill: { height: "100%", backgroundColor: "#16a34a", borderRadius: 2 },
+  audioTime: { fontSize: 11, color: "#64748b", marginTop: 4 },
+
+  // ── Map Preview Modal ──
+  mapPreviewBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)" },
+  mapPreviewContent: { flex: 1, margin: 20, marginTop: 60, marginBottom: 40, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden" },
+  mapPreviewHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#e2e8f0" },
+  mapPreviewTitle: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
+  mapPreviewCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f1f5f9", alignItems: "center", justifyContent: "center" },
+  mapPreviewBody: { flex: 1, backgroundColor: "#e5e7eb" },
+  mapPlaceholder: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f1f5f9" },
+  mapPlaceholderText: { fontSize: 14, color: "#64748b", marginTop: 8, textAlign: "center", paddingHorizontal: 20 },
+  mapNavigateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#2563eb", padding: 14, margin: 16, borderRadius: 10 },
+  mapNavigateBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });
