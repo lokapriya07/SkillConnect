@@ -75,12 +75,17 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
                                    currentBooking.items[0]?.service?.name?.toLowerCase() || 
                                    'default'
 
+            const serviceName = currentBooking.items[0]?.service?.name || serviceCategory;
+
             const userId = user?._id || user?.id
             const userLatitude = currentLocation?.coordinates?.lat || 28.6139 // Default to Delhi
             const userLongitude = currentLocation?.coordinates?.lng || 77.2090
 
-            console.log('Fetching worker with:', {
-                serviceCategory,
+            console.log('[BOOKING CONFIRMATION] Current booking:', {
+                bookingId: currentBooking.id,
+                serviceName: serviceName,
+                serviceCategory: serviceCategory,
+                items: currentBooking.items.map(i => ({ name: i.service.name, id: i.service.id })),
                 userId,
                 userLatitude,
                 userLongitude
@@ -93,7 +98,7 @@ export default function BookingConfirmationScreen({ onGoHome, onViewBookings, on
                 },
                 body: JSON.stringify({
                     serviceCategory,
-                    serviceName: currentBooking.items[0]?.service?.name || serviceCategory,
+                    serviceName: serviceName,
                     userId,
                     userLatitude,
                     userLongitude,

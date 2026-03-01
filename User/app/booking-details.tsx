@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useCallback } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, StatusBar, SafeAreaView, Alert } from "react-native"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, StatusBar, SafeAreaView, Alert, TextInput, ActivityIndicator } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
@@ -30,6 +30,10 @@ export default function BookingDetailsScreen() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [rating, setRating] = useState<number>(0)
+  const [feedbackMessage, setFeedbackMessage] = useState<string>('')
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
 
   // Get the correct job ID: prefer jobId param, then from booking, then extract from bookingId
   const getJobIdToFetch = useCallback(() => {
@@ -172,6 +176,53 @@ export default function BookingDetailsScreen() {
         return 'Service has been completed';
       default:
         return 'Waiting for update';
+    }
+  };
+
+  // Submit feedback to backend for the worker (called after job completed)
+  const submitFeedback = async () => {
+    try {
+      if (rating <= 0) {
+        Alert.alert('Please provide a rating');
+        return;
+      }
+
+      setIsSubmittingFeedback(true);
+
+      const jobIdToSend = displayData?._id || getJobIdToFetch();
+      const workerProfileId = displayData?.assignedWorker?.workerId || displayData?.hiredWorker?.workerId || displayData?.worker?.id || null;
+
+      if (!workerProfileId || !jobIdToSend) {
+        Alert.alert('Unable to submit feedback. Missing job or worker info.');
+        setIsSubmittingFeedback(false);
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/jobs/submit-feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: jobIdToSend,
+          workerProfileId,
+          rating,
+          message: feedbackMessage,
+          userId: displayData?.userId || null
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFeedbackSubmitted(true);
+        Alert.alert('Thank you!', 'Your feedback has been submitted.');
+      } else {
+        console.error('Feedback error:', data);
+        Alert.alert('Failed', data.error || 'Failed to submit feedback');
+      }
+    } catch (e) {
+      console.error('Submit feedback exception:', e);
+      Alert.alert('Error', 'Failed to submit feedback');
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   };
 
@@ -329,6 +380,42 @@ export default function BookingDetailsScreen() {
             </View>
             <Text style={styles.paymentSub}>Include all taxes and service fees</Text>
           </View>
+          {/* FEEDBACK SECTION - shown after completion */}
+          {currentStatus === 'completed' && (
+            <View style={styles.card}>
+              <Text style={styles.cardHeader}>Rate Your Worker</Text>
+              <Text style={[styles.detailLabel, { marginBottom: 8 }]}>{workerName}</Text>
+
+              {!feedbackSubmitted ? (
+                <>
+                  <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+                    {[1,2,3,4,5].map(i => (
+                      <TouchableOpacity key={i} onPress={() => setRating(i)} disabled={isSubmittingFeedback} style={{ marginRight: 8 }}>
+                        <Ionicons name={rating >= i ? 'star' : 'star-outline'} size={28} color={rating >= i ? '#F59E0B' : '#94A3B8'} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <TextInput
+                    value={feedbackMessage}
+                    onChangeText={setFeedbackMessage}
+                    placeholder="Write a short review"
+                    style={styles.feedbackInput}
+                    multiline
+                    numberOfLines={3}
+                  />
+
+                  <TouchableOpacity style={[styles.primaryBtn, { marginTop: 12 }]} onPress={submitFeedback} disabled={isSubmittingFeedback}>
+                    {isSubmittingFeedback ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryBtnText}>Submit Feedback</Text>}
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View>
+                  <Text style={{ fontSize: 14, color: '#10B981', fontWeight: '700' }}>Thanks for your feedback!</Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -417,6 +504,8 @@ const getStyles = (darkMode: boolean) => StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   ratingText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
   callFab: { width: 50, height: 50, borderRadius: 16, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center', elevation: 4 },
+
+  feedbackInput: { backgroundColor: '#F1F5F9', borderRadius: 12, padding: 12, minHeight: 80, textAlignVertical: 'top', color: '#1E293B' },
 
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   detailLabel: { fontSize: 14, color: '#94A3B8' },

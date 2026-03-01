@@ -24,6 +24,17 @@ const workSchema = new mongoose.Schema({
   experience: Number,
   aadhaarLastFour: String,
 
+  // Feedbacks and rating aggregation
+  feedbacks: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'JobRequest' },
+    rating: Number,
+    message: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
+  averageRating: { type: Number, default: 0 },
+  ratingCount: { type: Number, default: 0 },
+
   // 🔥 REQUIRED for location-based matching
   location: {
     type: { type: String, enum: ['Point'], default: 'Point' },

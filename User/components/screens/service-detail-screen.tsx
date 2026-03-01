@@ -525,7 +525,7 @@ export default function ServiceDetailScreen({ serviceId, onBack, onGoToCart }: S
     const [activeImageIndex, setActiveImageIndex] = useState(0)
 
     // Get store actions
-    const { addToCart, cart, darkMode } = useAppStore()
+    const { addToCart, cart, clearCart, darkMode } = useAppStore()
 
     // Finding the service based on the ID passed from the previous screen
     const service = services.find((s) => s.id === serviceId)
@@ -569,8 +569,13 @@ export default function ServiceDetailScreen({ serviceId, onBack, onGoToCart }: S
     ]
 
     const handleAddToCart = () => {
-        // This sends the specific service object found to the cart store
+        // Clear previous cart and add only this service (ensures each booking starts fresh)
+        console.log('[SERVICE DETAIL] Adding to cart:', { serviceName: service.name, serviceId: service.id });
+        console.log('[SERVICE DETAIL] Clearing previous cart...');
+        if (clearCart) clearCart()
+        console.log('[SERVICE DETAIL] Adding new service to cart...');
         addToCart(service, quantity)
+        console.log('[SERVICE DETAIL] Service added successfully');
     }
 
     const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)

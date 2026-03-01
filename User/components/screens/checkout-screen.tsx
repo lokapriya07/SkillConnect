@@ -77,6 +77,11 @@ export default function CheckoutScreen({ onBack, onConfirm, params }: CheckoutSc
   const surfaceVariantColor = darkMode ? Colors.gray[800] : Colors.gray[100]
   const primaryLightColor = darkMode ? "#1E3A5F" : "#E3F2FD"
 
+  // DEBUG: Log cart contents
+  React.useEffect(() => {
+    console.log('[CHECKOUT] Current cart items:', cart.map(item => ({ name: item.service.name, category: item.service.category })));
+  }, [cart]);
+
   // --- DYNAMIC PRICING LOGIC ---
   // Check if we are checking out a Bid from CreateRequestScreen or a standard Service
   const isBidFlow = !!activeJob?.budget && !!bidAmount
@@ -184,10 +189,9 @@ export default function CheckoutScreen({ onBack, onConfirm, params }: CheckoutSc
             ? 'custom'
             : (cart[0]?.service?.category || cart[0]?.service?.name?.toLowerCase() || 'general');
           
-          const newBooking = {
-            id: Math.random().toString(36).substr(2, 9),
-            userId: user?._id || user?.id || '', // Add userId to associate booking with user
-            items: hasBidAmount && activeJob?.description
+          // ENSURE ONLY THE CORRECT SERVICE IS BOOKED
+          // Use ONLY the first cart item (most recent service selected)
+          const correctBookingItems = hasBidAmount && activeJob?.description
               ? [
                   {
                     service: {
@@ -204,13 +208,20 @@ export default function CheckoutScreen({ onBack, onConfirm, params }: CheckoutSc
                     quantity: 1,
                   },
                 ]
-              : cart.map(item => ({
+              : cart.slice(0, 1).map(item => ({
                   ...item,
                   service: {
                     ...item.service,
                     name: item.service.name || item.service.category || "Service",
                   }
-                })),
+                }));
+
+          console.log('[CHECKOUT] Creating booking with items:', correctBookingItems.map(i => ({ name: i.service.name, id: i.service.id })));
+
+          const newBooking = {
+            id: Math.random().toString(36).substr(2, 9),
+            userId: user?._id || user?.id || '', // Add userId to associate booking with user
+            items: correctBookingItems,
             total: total,
             status: "confirmed" as const,
             date: selectedDate.toDateString(),

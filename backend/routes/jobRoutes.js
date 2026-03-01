@@ -404,6 +404,37 @@ router.get('/:jobId/bids', async (req, res) => {
         res.status(500).json({ error: "Failed to fetch bids" });
     }
 });
+
+    // SUBMIT FEEDBACK (User -> Worker)
+    router.post('/submit-feedback', async (req, res) => {
+        try {
+            const { jobId, workerProfileId, rating, message, userId } = req.body;
+
+            if (!jobId || !workerProfileId || !rating) {
+                return res.status(400).json({ success: false, error: 'Missing required fields' });
+            }
+
+            // Find worker profile (Work document)
+            const workerProfile = await Work.findById(workerProfileId);
+            if (!workerProfile) return res.status(404).json({ success: false, error: 'Worker profile not found' });
+
+            // Append feedback
+            workerProfile.feedbacks = workerProfile.feedbacks || [];
+            workerProfile.feedbacks.push({ userId: userId || null, jobId, rating: Number(rating), message: message || '' });
+
+            // Update aggregated rating
+            const prevTotal = (workerProfile.averageRating || 0) * (workerProfile.ratingCount || 0);
+            workerProfile.ratingCount = (workerProfile.ratingCount || 0) + 1;
+            workerProfile.averageRating = (prevTotal + Number(rating)) / workerProfile.ratingCount;
+
+            await workerProfile.save();
+
+            res.status(200).json({ success: true, averageRating: workerProfile.averageRating, ratingCount: workerProfile.ratingCount });
+        } catch (error) {
+            console.error('Submit Feedback Error:', error);
+            res.status(500).json({ success: false, error: 'Failed to submit feedback' });
+        }
+    });
 // GET CHAT HISTORY FOR A SPECIFIC JOB
 router.get('/:jobId/chat/:user1/:user2', async (req, res) => {
     try {
@@ -433,6 +464,8 @@ router.post('/assign-worker', async (req, res) => {
             userLongitude,
             requiredSkills
         } = req.body;
+
+        console.log('[ASSIGN WORKER] Request received:', { serviceName, serviceCategory, userId });
 
         if (!userLatitude || !userLongitude) {
             return res.status(400).json({ error: "User location is required" });
@@ -597,6 +630,12 @@ router.post('/assign-worker', async (req, res) => {
         // Get the total amount from the request body (sent from frontend for predefined services)
         const totalAmountFromRequest = req.body.totalAmount || req.body.price || 0;
 
+        console.log('[ASSIGN WORKER] Creating job with:', { 
+            serviceName: serviceName, 
+            serviceCategory: serviceCategory,
+            budget: totalAmountFromRequest 
+        });
+
         const jobRequest = await JobRequest.create({
             userId: userId,
             serviceName: serviceName || serviceCategory || 'Service',
@@ -622,7 +661,7 @@ router.post('/assign-worker', async (req, res) => {
             fullAddress: req.body.fullAddress || req.body.address || ''
         });
 
-        console.log('✅ Job created with assigned worker:', jobRequest._id);
+        console.log('✅ Job created with serviceName:', jobRequest.serviceName, 'jobId:', jobRequest._id);
 
         // --- NOTIFY WORKER ---
         await sendPushNotification(
