@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Dimensions,
   SafeAreaView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import {
   Search,
@@ -23,92 +24,89 @@ import {
   ChevronDown,
   Check,
 } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { height, width } = Dimensions.get("window");
 
 // --- Interfaces ---
 // Defining this interface resolves the "Property does not exist" error
 interface Job {
-  id: string;
-  title: string;
+  _id?: string;
+  id?: string;
+  title?: string;
   description: string;
-  client: {
+  client?: {
     name: string;
     rating: number;
     jobs: number;
   };
-  budget: {
+  userId?: {
+    _id?: string;
+    name?: string;
+    rating?: number;
+    jobsPosted?: number;
+  };
+  budget?: {
     min: number;
     max: number;
     type: "fixed" | "hourly";
   };
   location: string;
-  distance: number;
-  skills: string[];
-  postedAt: string;
-  proposals: number;
-  category: string;
-  isUrgent?: boolean;   // Optional property
-  matchScore?: number;  // Optional property
+  distance?: number;
+  skills?: string[];
+  skillsRequired?: string[];
+  postedAt?: string;
+  createdAt?: string;
+  proposals?: number;
+  category?: string;
+  isUrgent?: boolean;
+  matchScore?: number;
 }
-
-// --- MOCK DATA ---
-const RECOMMENDED_JOBS: Job[] = [
-  {
-    id: "1",
-    title: "Kitchen Sink Installation",
-    description: "Need a professional plumber to install a new kitchen sink with garbage disposal. Must have experience with modern fixtures.",
-    client: { name: "Sarah Wilson", rating: 4.8, jobs: 12 },
-    budget: { min: 150, max: 250, type: "fixed" },
-    location: "San Francisco, CA",
-    distance: 2,
-    skills: ["Plumbing", "Installation"],
-    postedAt: "2 hours ago",
-    proposals: 5,
-    matchScore: 95,
-    isUrgent: true,
-    category: "Plumbing",
-  },
-  {
-    id: "2",
-    title: "Electrical Panel Upgrade",
-    description: "Looking for licensed electrician to upgrade 100A panel to 200A. Must pull permits and pass inspection.",
-    client: { name: "Mike Johnson", rating: 4.9, jobs: 28 },
-    budget: { min: 2000, max: 3500, type: "fixed" },
-    location: "Oakland, CA",
-    distance: 8,
-    skills: ["Electrical", "Panel Upgrade"],
-    postedAt: "5 hours ago",
-    proposals: 8,
-    matchScore: 88,
-    category: "Electrical",
-  },
-];
-
-const ALL_JOBS: Job[] = [
-  ...RECOMMENDED_JOBS,
-  {
-    id: "5",
-    title: "Ceiling Fan Installation",
-    description: "Need electrician to install 3 ceiling fans in bedrooms. Wiring already in place.",
-    client: { name: "Lisa Chen", rating: 4.6, jobs: 5 },
-    budget: { min: 75, max: 150, type: "hourly" },
-    location: "Palo Alto, CA",
-    distance: 20,
-    skills: ["Electrical", "Installation"],
-    postedAt: "3 days ago",
-    proposals: 9,
-    category: "Electrical",
-    isUrgent: false,
-    matchScore: 70,
-  },
-];
 
 const CATEGORIES = ["All Categories", "Plumbing", "Electrical", "HVAC", "Carpentry", "Painting"];
 const JOB_TYPES = ["All Types", "On-site", "Remote"];
 const DISTANCES = [5, 10, 15, 25, 50, 100];
 
+// Helper function to format time
+const formatTimeAgo = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) return `${diffMins} minutes ago`;
+  if (diffHours < 24) return `${diffHours} hours ago`;
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return dateString;
+};
+
+// Helper function to extract location string from GeoJSON or location object
+const getLocationString = (location: any) => {
+  if (!location) return "Location TBD";
+  
+  // If it's a string, return it directly
+  if (typeof location === "string") return location;
+  
+  // If it's a GeoJSON object (has type and coordinates)
+  if (location.type && location.coordinates) {
+    return "Current Location"; // or return coordinates if needed
+  }
+  
+  // If it's an object with address property
+  if (location.address) return location.address;
+  
+  // Default fallback
+  return "Location TBD";
+};
+
 export default function JobsPage() {
+  // Dynamic state for jobs
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("recommended");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -119,17 +117,66 @@ export default function JobsPage() {
   const [distance, setDistance] = useState(25);
   const [activePicker, setActivePicker] = useState<"category" | "jobType" | null>(null);
 
+  // Fetch jobs from backend
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const workerId = await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
+        
+        if (!workerId) {
+          setError("Worker ID not found");
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker-feed/${workerId}`);
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch jobs");
+        }
+
+        const data = await response.json();
+        console.log('[SEARCH] Fetched jobs:', data.length);
+        setAllJobs(data || []);
+      } catch (err) {
+        console.error('[SEARCH] Fetch error:', err);
+        setError(err instanceof Error ? err.message : "Failed to load jobs");
+        setAllJobs([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobs();
+  }, []);
+
   const filteredJobs = useMemo(() => {
-    let list = activeTab === "recommended" ? [...RECOMMENDED_JOBS] : [...ALL_JOBS];
+    let list = activeTab === "recommended" ? allJobs.slice(0, 5) : allJobs;
+    
     if (searchQuery) {
-      list = list.filter((j) => j.title.toLowerCase().includes(searchQuery.toLowerCase()));
+      list = list.filter((j) => 
+        j.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        j.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     }
+
     return list;
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, allJobs]);
 
   // --- MODAL COMPONENTS ---
 
-  const DetailsModal = () => (
+  const DetailsModal = () => {
+    if (!selectedJob) return null;
+    
+    const clientName = selectedJob.client?.name || selectedJob.userId?.name || "Unknown Client";
+    const clientRating = selectedJob.client?.rating || selectedJob.userId?.rating || 0;
+    const clientJobs = selectedJob.client?.jobs || selectedJob.userId?.jobsPosted || 0;
+    const skills = selectedJob.skills || selectedJob.skillsRequired || [];
+    const postedTime = formatTimeAgo(selectedJob.createdAt || selectedJob.postedAt || new Date().toISOString());
+
+    return (
     <Modal visible={!!selectedJob} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { height: height * 0.85 }]}>
@@ -142,7 +189,7 @@ export default function JobsPage() {
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={styles.titleRow}>
-              <Text style={[styles.jobTitle, { fontSize: 22 }]}>{selectedJob?.title}</Text>
+              <Text style={[styles.jobTitle, { fontSize: 22 }]}>{selectedJob?.title || selectedJob?.description.slice(0, 50)}</Text>
               {selectedJob?.isUrgent && (
                 <View style={styles.urgentBadge}>
                   <Zap size={12} color="#ea580c" fill="#ea580c" />
@@ -154,44 +201,48 @@ export default function JobsPage() {
             <View style={styles.detailsMetaRow}>
               <View style={styles.metaItem}>
                 <MapPin size={16} color="#64748b" />
-                <Text style={styles.metaText}>{selectedJob?.location}</Text>
+                <Text style={styles.metaText}>{getLocationString(selectedJob?.location)}</Text>
               </View>
               <View style={styles.metaItem}>
                 <Clock size={16} color="#64748b" />
-                <Text style={styles.metaText}>Posted {selectedJob?.postedAt}</Text>
+                <Text style={styles.metaText}>Posted {postedTime}</Text>
               </View>
             </View>
 
             <View style={styles.detailsPricingCard}>
               <View>
                 <Text style={styles.detailsLabel}>Budget</Text>
-                <Text style={styles.detailsValue}>${selectedJob?.budget.min} - ${selectedJob?.budget.max}</Text>
+                <Text style={styles.detailsValue}>${selectedJob?.budget?.min || 0} - ${selectedJob?.budget?.max || 0}</Text>
               </View>
               <View style={styles.dividerVertical} />
               <View>
                 <Text style={styles.detailsLabel}>Type</Text>
-                <Text style={styles.detailsValue}>{selectedJob?.budget.type === 'fixed' ? 'Fixed Price' : 'Hourly'}</Text>
+                <Text style={styles.detailsValue}>{selectedJob?.budget?.type === 'fixed' ? 'Fixed Price' : 'Hourly'}</Text>
               </View>
             </View>
 
             <Text style={styles.sectionTitle}>Description</Text>
             <Text style={styles.descriptionFull}>{selectedJob?.description}</Text>
 
-            <Text style={styles.sectionTitle}>Required Skills</Text>
-            <View style={styles.skillWrap}>
-              {selectedJob?.skills.map((skill) => (
-                <View key={skill} style={styles.distChip}>
-                  <Text style={styles.distText}>{skill}</Text>
+            {skills.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Required Skills</Text>
+                <View style={styles.skillWrap}>
+                  {skills.map((skill) => (
+                    <View key={skill} style={styles.distChip}>
+                      <Text style={styles.distText}>{skill}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
+              </>
+            )}
 
             <View style={styles.clientDetailsCard}>
               <Text style={styles.sectionTitle}>About Client</Text>
-              <Text style={styles.clientName}>{selectedJob?.client.name}</Text>
+              <Text style={styles.clientName}>{clientName}</Text>
               <View style={styles.detailsMetaRow}>
                 <Star size={14} color="#eab308" fill="#eab308" />
-                <Text style={styles.clientMetaText}>{selectedJob?.client.rating} Rating • {selectedJob?.client.jobs} jobs posted</Text>
+                <Text style={styles.clientMetaText}>{clientRating.toFixed(1)} Rating • {clientJobs} jobs posted</Text>
               </View>
             </View>
           </ScrollView>
@@ -202,7 +253,8 @@ export default function JobsPage() {
         </View>
       </View>
     </Modal>
-  );
+    );
+  };
 
   const PickerModal = ({ title, options, selected, onSelect, visible }: any) => (
     <Modal visible={visible} transparent animationType="fade">
@@ -258,45 +310,96 @@ export default function JobsPage() {
       </View>
 
       <ScrollView contentContainerStyle={styles.listContainer}>
-        {filteredJobs.map(job => (
-          <View key={job.id} style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={{ flex: 1 }}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.jobTitle} numberOfLines={1}>{job.title}</Text>
-                  {job.isUrgent && (
-                    <View style={styles.urgentBadge}>
-                      <Zap size={10} color="#ea580c" fill="#ea580c" />
-                      <Text style={styles.urgentText}>Urgent</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.clientMeta}>{job.client.name} • ⭐ {job.client.rating}</Text>
-              </View>
-              <View style={styles.matchBadge}><Text style={styles.matchText}>{job.matchScore || 80}% Match</Text></View>
-            </View>
-            <Text style={styles.description} numberOfLines={2}>{job.description}</Text>
-            <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                <DollarSign size={14} color="#0f172a" />
-                <Text style={styles.priceText}>${job.budget.min}-${job.budget.max}</Text>
-              </View>
-              <View style={styles.metaItem}>
-                <MapPin size={14} color="#64748b" />
-                <Text style={styles.metaText}>{job.location}</Text>
-              </View>
-            </View>
-            <View style={styles.cardFooter}>
-              <Text style={styles.proposals}>{job.proposals} proposals</Text>
-              <TouchableOpacity
-                style={styles.applyBtn}
-                onPress={() => setSelectedJob(job)}
-              >
-                <Text style={styles.applyBtnText}>View Details</Text>
-              </TouchableOpacity>
-            </View>
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#2563eb" />
+            <Text style={styles.loadingText}>Loading jobs...</Text>
           </View>
-        ))}
+        ) : error ? (
+          <View style={styles.centerContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity 
+              style={styles.retryBtn}
+              onPress={() => {
+                setLoading(true);
+                const fetchJobs = async () => {
+                  try {
+                    const workerId = await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
+                    if (!workerId) return;
+                    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker-feed/${workerId}`);
+                    const data = await response.json();
+                    setAllJobs(data || []);
+                    setError(null);
+                  } catch (err) {
+                    setError("Failed to load jobs");
+                  } finally {
+                    setLoading(false);
+                  }
+                };
+                fetchJobs();
+              }}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filteredJobs.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <Text style={styles.noJobsText}>No jobs found</Text>
+            <Text style={styles.subText}>Try adjusting your filters or search</Text>
+          </View>
+        ) : (
+          filteredJobs.map(job => {
+            const jobId = job._id || job.id;
+            const clientName = job.client?.name || job.userId?.name || "Unknown Client";
+            const clientRating = job.client?.rating || job.userId?.rating || 0;
+            const clientJobs = job.client?.jobs || job.userId?.jobsPosted || 0;
+            const skills = job.skills || job.skillsRequired || [];
+            const postedTime = formatTimeAgo(job.createdAt || job.postedAt || new Date().toISOString());
+
+            return (
+              <View key={jobId} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.jobTitle} numberOfLines={1}>{job.title || job.description.slice(0, 50)}</Text>
+                      {job.isUrgent && (
+                        <View style={styles.urgentBadge}>
+                          <Zap size={10} color="#ea580c" fill="#ea580c" />
+                          <Text style={styles.urgentText}>Urgent</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.clientMeta}>{clientName} • ⭐ {clientRating.toFixed(1)}</Text>
+                  </View>
+                  <View style={styles.matchBadge}>
+                    <Text style={styles.matchText}>{job.matchScore || 85}% Match</Text>
+                  </View>
+                </View>
+                <Text style={styles.description} numberOfLines={2}>{job.description}</Text>
+                <View style={styles.metaRow}>
+                  <View style={styles.metaItem}>
+                    <DollarSign size={14} color="#0f172a" />
+                    <Text style={styles.priceText}>${job.budget?.min || 0}-${job.budget?.max || 0}</Text>
+                    <Text style={styles.budgetType}> {job.budget?.type === 'fixed' ? 'Fixed' : 'Hourly'}</Text>
+                  </View>
+                  <View style={styles.metaItem}>
+                    <MapPin size={14} color="#64748b" />
+                    <Text style={styles.metaText}>{getLocationString(job.location)}</Text>
+                  </View>
+                </View>
+                <View style={styles.cardFooter}>
+                  <Text style={styles.proposals}>{job.proposals || 0} proposals</Text>
+                  <TouchableOpacity
+                    style={styles.applyBtn}
+                    onPress={() => setSelectedJob(job)}
+                  >
+                    <Text style={styles.applyBtnText}>View Details</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })
+        )}
       </ScrollView>
 
       {/* MODALS */}
@@ -373,6 +476,13 @@ const styles = StyleSheet.create({
   tabText: { fontWeight: "600", color: "#64748b" },
   activeTabText: { color: "#0f172a" },
   listContainer: { padding: 16 },
+  centerContainer: { flex: 1, justifyContent: "center", alignItems: "center", minHeight: 300, gap: 16 },
+  loadingText: { fontSize: 16, color: "#64748b", marginTop: 8 },
+  errorText: { fontSize: 16, color: "#ef4444", textAlign: "center", fontWeight: "600" },
+  noJobsText: { fontSize: 18, color: "#0f172a", fontWeight: "bold", textAlign: "center" },
+  subText: { fontSize: 14, color: "#64748b", textAlign: "center" },
+  retryBtn: { backgroundColor: "#2563eb", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  retryText: { color: "#fff", fontWeight: "bold" },
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: "#e2e8f0" },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: 'wrap' },
@@ -387,6 +497,7 @@ const styles = StyleSheet.create({
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { fontSize: 12, color: "#64748b" },
   priceText: { fontSize: 13, fontWeight: "bold", color: "#0f172a" },
+  budgetType: { fontSize: 11, color: "#64748b", fontStyle: "italic" },
   cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: "#f1f5f9", paddingTop: 12 },
   proposals: { fontSize: 12, color: "#94a3b8" },
   applyBtn: { backgroundColor: "#0f172a", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
