@@ -44,6 +44,11 @@ export default function DashboardScreen() {
 
   const { currentLocation } = useAppStore();
   const [profileCompletion, setProfileCompletion] = useState(0);
+  // Performance metrics
+  const [workerRating, setWorkerRating] = useState(0);
+  const [completedJobs, setCompletedJobs] = useState(0);
+  const [onTimePercentage, setOnTimePercentage] = useState(0);
+  const [ratingCount, setRatingCount] = useState(0);
 
 
   // Inside DashboardScreen.tsx
@@ -71,6 +76,33 @@ export default function DashboardScreen() {
         } else {
           // NEW WORKER CASE: Profile not found or no percentage returned
           setProfileCompletion(0);
+        }
+
+        // Fetch dynamic performance stats (completed jobs, ratings, etc.)
+        try {
+          const statsResponse = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker/${workerId}/stats`);
+          const statsResult = await statsResponse.json();
+
+          if (statsResult.success) {
+            setWorkerRating(statsResult.averageRating || 0);
+            setRatingCount(statsResult.ratingCount || 0);
+            setCompletedJobs(statsResult.completedJobs || 0);
+            setOnTimePercentage(statsResult.onTimePercentage || 95);
+            console.log('[WORKER DASHBOARD] Performance stats loaded:', { rating: statsResult.averageRating, completed: statsResult.completedJobs, onTime: statsResult.onTimePercentage });
+          } else {
+            // Reset to defaults if stats fetch fails
+            setWorkerRating(0);
+            setRatingCount(0);
+            setCompletedJobs(0);
+            setOnTimePercentage(95);
+          }
+        } catch (statsError) {
+          console.error('[WORKER DASHBOARD] Stats fetch error:', statsError);
+          // Reset to defaults on error
+          setWorkerRating(0);
+          setRatingCount(0);
+          setCompletedJobs(0);
+          setOnTimePercentage(95);
         }
 
         // Fetch the jobs feed
@@ -363,21 +395,27 @@ export default function DashboardScreen() {
           <View style={styles.perfItem}>
             <Feather name="star" size={18} color="#fbbf24" />
             <Text style={styles.perfLabel}>Rating</Text>
-            <Text style={styles.perfValue}>4.7</Text>
+            <Text style={styles.perfValue}>{workerRating > 0 ? workerRating.toFixed(1) : 'N/A'}</Text>
           </View>
           <View style={styles.perfItem}>
             <Feather name="briefcase" size={18} color="#6b7280" />
             <Text style={styles.perfLabel}>Completed</Text>
-            <Text style={styles.perfValue}>42</Text>
+            <Text style={styles.perfValue}>{completedJobs}</Text>
           </View>
           <View style={styles.perfItem}>
             <Feather name="clock" size={18} color="#10b981" />
             <Text style={styles.perfLabel}>On-time</Text>
-            <Text style={styles.perfValue}>96%</Text>
+            <Text style={styles.perfValue}>{onTimePercentage}%</Text>
           </View>
         </View>
-        <ProgressBar value={85} style={{ fillColor: "#10b981" }} />
-        <Text style={styles.perfHint}>Complete 8 more jobs to reach ⭐ 4.8</Text>
+        <ProgressBar value={Math.min(workerRating * 20, 100)} style={{ fillColor: "#10b981" }} />
+        <Text style={styles.perfHint}>
+          {workerRating >= 4.8 
+            ? '🎉 Excellent rating! Keep up the great work!' 
+            : workerRating > 0 
+            ? `Complete ${Math.max(0, Math.ceil((4.8 - workerRating) * 10))} more excellent jobs to reach ⭐ 4.8`
+            : 'Start completing jobs to build your rating'}
+        </Text>
       </View>
 
       {/* Earnings */}

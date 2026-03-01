@@ -34,6 +34,8 @@ const workSchema = new mongoose.Schema({
   }],
   averageRating: { type: Number, default: 0 },
   ratingCount: { type: Number, default: 0 },
+  completedJobs: { type: Number, default: 0 },
+  onTimePercentage: { type: Number, default: 100 },
 
   // 🔥 REQUIRED for location-based matching
   location: {
