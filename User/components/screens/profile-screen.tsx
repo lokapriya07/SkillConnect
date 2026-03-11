@@ -394,6 +394,14 @@ const menuItems = [
         route: "/bookings" as Href,
         color: "#3B82F6" // Changed to Blue
     },
+    {
+    id: "completedTasks",
+    icon: "checkmark-done",
+    title: "Completed Tasks",
+    subtitle: "View your completed services",
+    route: "/completed-tasks" as Href,
+    color: "#10B981"
+    },
     { 
         id: "help", 
         icon: "chatbubble", 

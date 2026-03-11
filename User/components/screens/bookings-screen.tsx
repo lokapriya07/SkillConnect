@@ -378,13 +378,16 @@ export default function BookingsScreen() {
                                         <Text style={styles.bookingProvider}>by {providerName}</Text>
                                         <View style={[styles.statusBadge, { backgroundColor: getStatusBg(status) }]}>
                                             <Text style={[styles.statusText, { color: getStatusColor(status) }]}>
-                                                {booking.isAssignedJob ? 
-                                                    (status === 'assigned' ? 'ASSIGNED' : 
-                                                     status === 'scheduled' ? 'ON THE WAY' :
-                                                     status === 'in_progress' ? 'IN PROGRESS' :
-                                                     status === 'completed' ? 'COMPLETED' :
-                                                     status.toUpperCase()) : 
-                                                    (booking.isHiredJob ? 'HIRED' : status.toUpperCase())}
+                                                {
+                                                    status === "assigned" ? "ASSIGNED" :
+                                                    status === "scheduled" ? "ON THE WAY" :
+                                                    status === "in_progress" ? "IN PROGRESS" :
+                                                    status === "completed" ? "COMPLETED" :
+                                                    status === "cancelled" ? "CANCELLED" :
+                                                    status === "confirmed" ? "CONFIRMED" :
+                                                    status === "upcoming" ? "UPCOMING" :
+                                                    status.toUpperCase()
+                                                }
                                             </Text>
                                         </View>
                                     </View>
