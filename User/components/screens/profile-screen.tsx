@@ -366,7 +366,6 @@
 // }
 
 
-
 "use client"
 
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions } from "react-native"
@@ -376,8 +375,6 @@ import { Colors } from "@/constants/Colors"
 import { useRouter, Href } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { LinearGradient } from 'expo-linear-gradient'
-import Animated, { FadeInDown } from 'react-native-reanimated'
-
 
 const { width } = Dimensions.get('window')
 
@@ -392,15 +389,15 @@ const menuItems = [
         title: "My Bookings", 
         subtitle: "View all your bookings", 
         route: "/bookings" as Href,
-        color: "#3B82F6" // Changed to Blue
+        color: "#3B82F6"
     },
     {
-    id: "completedTasks",
-    icon: "checkmark-done",
-    title: "Completed Tasks",
-    subtitle: "View your completed services",
-    route: "/completed-tasks" as Href,
-    color: "#10B981"
+        id: "completedTasks",
+        icon: "checkmark-done",
+        title: "Completed Tasks",
+        subtitle: "View your completed services",
+        route: "/completed-tasks" as Href,
+        color: "#10B981"
     },
     { 
         id: "help", 
@@ -408,7 +405,7 @@ const menuItems = [
         title: "Help & Support", 
         subtitle: "Get help, contact us", 
         route: "/help" as Href,
-        color: "#10B981" // Keep Emerald
+        color: "#10B981"
     },
     { 
         id: "about", 
@@ -416,518 +413,464 @@ const menuItems = [
         title: "About", 
         subtitle: "App version, terms, privacy", 
         route: "/about" as Href,
-        color: "#F59E0B" // Keep Amber
+        color: "#F59E0B"
     },
 ]
 
 export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
+
     const { user, isAuthenticated, darkMode } = useAppStore()
     const router = useRouter()
     const insets = useSafeAreaInsets()
 
-    // Blue color for replacements
-    const blueColor = "#3B82F6" // Bright Blue
+    const blueColor = "#3B82F6"
 
-    // Enhanced theme colors
     const backgroundColor = darkMode ? '#0A0F1F' : '#F8FAFC'
     const surfaceColor = darkMode ? '#1A1F30' : '#FFFFFF'
     const textColor = darkMode ? '#FFFFFF' : '#0F172A'
     const textSecondaryColor = darkMode ? '#94A3B8' : '#64748B'
     const borderColor = darkMode ? '#2D3348' : '#E2E8F0'
-    const cardColor = darkMode ? '#1E2438' : '#FFFFFF'
 
     const styles = StyleSheet.create({
-        container: {
-            flex: 1,
-            backgroundColor: backgroundColor,
+
+        container:{
+            flex:1,
+            backgroundColor:backgroundColor
         },
-        header: {
-            paddingHorizontal: 20,
-            paddingTop: insets.top + 20,
-            paddingBottom: 20,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+
+        header:{
+            paddingHorizontal:20,
+            paddingTop:insets.top+20,
+            paddingBottom:20,
+            flexDirection:'row',
+            justifyContent:'space-between',
+            alignItems:'center'
         },
-        headerTitle: {
-            fontSize: 28,
-            fontWeight: '700',
-            color: textColor,
-            letterSpacing: -0.5,
+
+        headerTitle:{
+            fontSize:28,
+            fontWeight:'700',
+            color:textColor
         },
-        headerButtons: {
-            flexDirection: 'row',
-            gap: 12,
+
+        iconButton:{
+            width:44,
+            height:44,
+            borderRadius:22,
+            backgroundColor:surfaceColor,
+            justifyContent:'center',
+            alignItems:'center'
         },
-        iconButton: {
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: surfaceColor,
-            justifyContent: 'center',
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: darkMode ? 0.3 : 0.1,
-            shadowRadius: 8,
-            elevation: 4,
+
+        coverImage:{
+            height:120,
+            marginBottom:40
         },
-        coverImage: {
-            height: 120,
-            backgroundColor: darkMode ? '#2D3348' : '#E2E8F0',
-            marginBottom: 40,
+
+        profileSection:{
+            paddingHorizontal:20,
+            marginTop:-118,
+            marginBottom:24
         },
-        profileSection: {
-            paddingHorizontal: 20,
-            marginTop: -118,
-            marginBottom: 24,
+
+        profileCard:{
+            backgroundColor:surfaceColor,
+            borderRadius:28,
+            padding:20,
+            flexDirection:'row',
+            alignItems:'center'
         },
-        profileCard: {
-            backgroundColor: surfaceColor,
-            borderRadius: 28,
-            padding: 20,
-            flexDirection: 'row',
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: darkMode ? 0.3 : 0.1,
-            shadowRadius: 12,
-            elevation: 5,
+
+        profileImageWrapper:{
+            marginRight:16
         },
-        profileImageWrapper: {
-            position: 'relative',
-            marginRight: 16,
+
+        profileImage:{
+            width:80,
+            height:80,
+            borderRadius:40
         },
-        profileImage: {
-            width: 80,
-            height: 80,
-            borderRadius: 40,
-            borderWidth: 3,
-            borderColor: '#FFFFFF',
+
+        profileImagePlaceholder:{
+            width:80,
+            height:80,
+            borderRadius:40,
+            backgroundColor:borderColor,
+            justifyContent:'center',
+            alignItems:'center'
         },
-        profileImagePlaceholder: {
-            width: 80,
-            height: 80,
-            borderRadius: 40,
-            backgroundColor: darkMode ? '#2D3348' : '#E2E8F0',
-            justifyContent: 'center',
-            alignItems: 'center',
-            borderWidth: 3,
-            borderColor: '#FFFFFF',
+
+        badgeIcon:{
+            position:'absolute',
+            bottom:0,
+            right:0,
+            backgroundColor:blueColor,
+            width:28,
+            height:28,
+            borderRadius:14,
+            justifyContent:'center',
+            alignItems:'center'
         },
-        badgeIcon: {
-            position: 'absolute',
-            bottom: 0,
-            right: 0,
-            backgroundColor: blueColor, // Changed to Blue
-            width: 28,
-            height: 28,
-            borderRadius: 14,
-            justifyContent: 'center',
-            alignItems: 'center',
-            borderWidth: 3,
-            borderColor: surfaceColor,
+
+        profileInfo:{
+            flex:1
         },
-        profileInfo: {
-            flex: 1,
+
+        profileName:{
+            fontSize:24,
+            fontWeight:'700',
+            color:textColor
         },
-        profileName: {
-            fontSize: 24,
-            fontWeight: '700',
-            color: textColor,
-            marginBottom: 4,
-            letterSpacing: -0.3,
+
+        profilePhone:{
+            fontSize:14,
+            color:textSecondaryColor,
+            marginBottom:8
         },
-        profilePhone: {
-            fontSize: 14,
-            color: textSecondaryColor,
-            marginBottom: 8,
-            fontWeight: '500',
+
+        editProfileButton:{
+            flexDirection:'row',
+            alignItems:'center'
         },
-        editProfileButton: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: darkMode ? '#2D3348' : '#F1F5F9',
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 20,
-            alignSelf: 'flex-start',
-            gap: 6,
+
+        editProfileText:{
+            fontSize:13,
+            color:blueColor
         },
-        editProfileText: {
-            fontSize: 13,
-            color: blueColor, // Changed to Blue
-            fontWeight: '600',
+
+        statsGrid:{
+            flexDirection:'row',
+            paddingHorizontal:20,
+            gap:12,
+            marginBottom:24
         },
-        statsGrid: {
-            flexDirection: 'row',
-            paddingHorizontal: 20,
-            gap: 12,
-            marginBottom: 24,
+
+        statCard:{
+            flex:1,
+            backgroundColor:surfaceColor,
+            borderRadius:20,
+            padding:16,
+            alignItems:'center'
         },
-        statCard: {
-            flex: 1,
-            backgroundColor: surfaceColor,
-            borderRadius: 20,
-            padding: 16,
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: darkMode ? 0.2 : 0.05,
-            shadowRadius: 8,
-            elevation: 3,
+
+        statValue:{
+            fontSize:24,
+            fontWeight:'700',
+            color:textColor
         },
-        statValue: {
-            fontSize: 24,
-            fontWeight: '700',
-            color: textColor,
-            marginBottom: 4,
+
+        statLabel:{
+            fontSize:12,
+            color:textSecondaryColor
         },
-        statLabel: {
-            fontSize: 12,
-            color: textSecondaryColor,
-            fontWeight: '500',
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
+
+        membershipCard:{
+            marginHorizontal:20,
+            marginBottom:24,
+            borderRadius:24,
+            overflow:'hidden'
         },
-        membershipCard: {
-            marginHorizontal: 20,
-            marginBottom: 24,
-            borderRadius: 24,
-            overflow: 'hidden',
-            shadowColor: blueColor, // Changed to Blue
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.3,
-            shadowRadius: 16,
-            elevation: 8,
+
+        membershipGradient:{
+            padding:20
         },
-        membershipGradient: {
-            padding: 20,
+
+        membershipContent:{
+            flexDirection:'row',
+            alignItems:'center',
+            justifyContent:'space-between'
         },
-        membershipContent: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+
+        membershipLeft:{
+            flexDirection:'row',
+            alignItems:'center',
+            gap:16
         },
-        membershipLeft: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 16,
+
+        membershipIcon:{
+            width:56,
+            height:56,
+            borderRadius:20,
+            backgroundColor:'rgba(255,255,255,0.2)',
+            justifyContent:'center',
+            alignItems:'center'
         },
-        membershipIcon: {
-            width: 56,
-            height: 56,
-            borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            justifyContent: 'center',
-            alignItems: 'center',
+
+        membershipTitle:{
+            color:'#fff',
+            fontSize:18,
+            fontWeight:'700'
         },
-        membershipTitle: {
-            color: '#FFFFFF',
-            fontSize: 18,
-            fontWeight: '700',
-            marginBottom: 4,
+
+        membershipSubtitle:{
+            color:'rgba(255,255,255,0.8)',
+            fontSize:13
         },
-        membershipSubtitle: {
-            color: 'rgba(255,255,255,0.8)',
-            fontSize: 13,
-            fontWeight: '500',
+
+        membershipBadge:{
+            backgroundColor:'rgba(255,255,255,0.2)',
+            paddingHorizontal:12,
+            paddingVertical:6,
+            borderRadius:20
         },
-        membershipBadge: {
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 20,
+
+        membershipBadgeText:{
+            color:'#fff'
         },
-        membershipBadgeText: {
-            color: '#FFFFFF',
-            fontSize: 12,
-            fontWeight: '600',
+
+        menuSection:{
+            marginHorizontal:20,
+            marginBottom:24,
+            backgroundColor:surfaceColor,
+            borderRadius:24
         },
-        quickActionsGrid: {
-            flexDirection: 'row',
-            paddingHorizontal: 20,
-            gap: 12,
-            marginBottom: 24,
+
+        menuItem:{
+            flexDirection:'row',
+            justifyContent:'space-between',
+            alignItems:'center',
+            padding:16
         },
-        quickActionCard: {
-            flex: 1,
-            backgroundColor: surfaceColor,
-            borderRadius: 20,
-            padding: 16,
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: darkMode ? 0.2 : 0.05,
-            shadowRadius: 8,
-            elevation: 3,
+
+        menuItemLeft:{
+            flexDirection:'row',
+            alignItems:'center',
+            gap:12
         },
-        quickActionIcon: {
-            width: 48,
-            height: 48,
-            borderRadius: 16,
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 8,
+
+        menuIcon:{
+            width:44,
+            height:44,
+            borderRadius:14,
+            justifyContent:'center',
+            alignItems:'center'
         },
-        quickActionTitle: {
-            fontSize: 14,
-            fontWeight: '600',
-            color: textColor,
-            marginBottom: 2,
+
+        menuTitle:{
+            fontSize:16,
+            fontWeight:'600',
+            color:textColor
         },
-        quickActionCount: {
-            fontSize: 12,
-            color: textSecondaryColor,
-            fontWeight: '500',
+
+        menuSubtitle:{
+            fontSize:13,
+            color:textSecondaryColor
         },
-        menuSection: {
-            marginHorizontal: 20,
-            marginBottom: 24,
-            backgroundColor: surfaceColor,
-            borderRadius: 24,
-            overflow: 'hidden',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: darkMode ? 0.2 : 0.05,
-            shadowRadius: 8,
-            elevation: 3,
+
+        logoutButton:{
+            marginHorizontal:20,
+            marginBottom:20,
+            padding:18,
+            borderRadius:24,
+            backgroundColor:'#FEF2F2',
+            flexDirection:'row',
+            justifyContent:'center',
+            alignItems:'center'
         },
-        menuItem: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 16,
+
+        logoutText:{
+            color:'#EF4444',
+            fontSize:16,
+            fontWeight:'600'
         },
-        menuItemLeft: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
+
+        versionText:{
+            textAlign:'center',
+            color:textSecondaryColor,
+            fontSize:12,
+            marginBottom:24
         },
-        menuIcon: {
-            width: 44,
-            height: 44,
-            borderRadius: 14,
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-        menuTextContainer: {
-            gap: 2,
-        },
-        menuTitle: {
-            fontSize: 16,
-            fontWeight: '600',
-            color: textColor,
-        },
-        menuSubtitle: {
-            fontSize: 13,
-            color: textSecondaryColor,
-            fontWeight: '500',
-        },
-        logoutButton: {
-            marginHorizontal: 20,
-            marginBottom: 20,
-            padding: 18,
-            borderRadius: 24,
-            backgroundColor: darkMode ? '#2D3348' : '#FEF2F2',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            shadowColor: '#EF4444',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 8,
-            elevation: 3,
-        },
-        logoutText: {
-            color: '#EF4444',
-            fontSize: 16,
-            fontWeight: '600',
-        },
-        versionText: {
-            textAlign: 'center',
-            color: textSecondaryColor,
-            fontSize: 12,
-            marginBottom: 24,
-            fontWeight: '500',
-        },
-        divider: {
-            height: 1,
-            backgroundColor: borderColor,
-            marginHorizontal: 20,
-            marginVertical: 8,
-        },
+
+        divider:{
+            height:1,
+            backgroundColor:borderColor,
+            marginHorizontal:20,
+            marginVertical:8
+        }
+
     })
 
-    return (
+    return(
+
         <View style={styles.container}>
-            {/* Header */}
+
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Account</Text>
-                <View style={styles.headerButtons}>
-                    <TouchableOpacity 
-                        style={styles.iconButton}
-                        onPress={() => router.push("/settings")}
-                    >
-                        <Ionicons name="settings-outline" size={20} color={textColor} />
-                    </TouchableOpacity>
-                </View>
+
+                <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={()=>router.push("/settings")}
+                >
+                    <Ionicons name="settings-outline" size={20} color={textColor}/>
+                </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Cover Image - Changed to Blue Gradient */}
+
                 <View style={styles.coverImage}>
                     <LinearGradient
-                       colors={['#3B82F6', '#60A5FA']} // Changed to Blue gradients
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={{ flex: 1 }}
+                        colors={['#3B82F6','#60A5FA']}
+                        style={{flex:1}}
                     />
                 </View>
 
-                {/* Profile Card */}
-                <Animated.View 
-                    entering={FadeInDown.delay(200).springify()}
-                    style={styles.profileSection}
-                >
-                    
-                    <TouchableOpacity 
+                <View style={styles.profileSection}>
+
+                    <TouchableOpacity
                         style={styles.profileCard}
-                        onPress={() => router.push("/edit-profile" as Href)}
-                        activeOpacity={0.7}
+                        onPress={()=>router.push("/edit-profile" as Href)}
                     >
+
                         <View style={styles.profileImageWrapper}>
+
                             {isAuthenticated && user ? (
+
                                 <Image
-                                    source={{ uri: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop" }}
+                                    source={{uri:"https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200"}}
                                     style={styles.profileImage}
                                 />
+
                             ) : (
+
                                 <View style={styles.profileImagePlaceholder}>
-                                    <Ionicons name="person" size={32} color={textSecondaryColor} />
+                                    <Ionicons name="person" size={32} color={textSecondaryColor}/>
                                 </View>
+
                             )}
+
                             <View style={styles.badgeIcon}>
-                                <Ionicons name="camera" size={14} color="#FFFFFF" />
+                                <Ionicons name="camera" size={14} color="#fff"/>
                             </View>
+
                         </View>
+
                         <View style={styles.profileInfo}>
+
                             <Text style={styles.profileName}>
                                 {isAuthenticated ? (user?.name || "John Doe") : "Guest User"}
                             </Text>
+
                             <Text style={styles.profilePhone}>
                                 {user?.phone || "+1 (555) 123-4567"}
                             </Text>
-                            <View style={styles.editProfileButton}>
-                                <Ionicons name="pencil" size={12} color={blueColor} /> {/* Changed to Blue */}
-                                <Text style={styles.editProfileText}>Edit Profile</Text>
-                            </View>
-                        </View>
-                        <Ionicons name="chevron-forward" size={20} color={textSecondaryColor} />
-                    </TouchableOpacity>
-                </Animated.View>
 
-                {/* Stats Cards */}
-                <Animated.View 
-                    entering={FadeInDown.delay(300).springify()}
-                    style={styles.statsGrid}
-                >
+                            <View style={styles.editProfileButton}>
+                                <Ionicons name="pencil" size={12} color={blueColor}/>
+                                <Text style={styles.editProfileText}> Edit Profile</Text>
+                            </View>
+
+                        </View>
+
+                        <Ionicons name="chevron-forward" size={20} color={textSecondaryColor}/>
+
+                    </TouchableOpacity>
+
+                </View>
+
+                <View style={styles.statsGrid}>
+
                     <View style={styles.statCard}>
                         <Text style={styles.statValue}>12</Text>
                         <Text style={styles.statLabel}>Bookings</Text>
                     </View>
+
                     <View style={styles.statCard}>
                         <Text style={styles.statValue}>150</Text>
                         <Text style={styles.statLabel}>Points</Text>
                     </View>
+
                     <View style={styles.statCard}>
                         <Text style={styles.statValue}>$1.2k</Text>
                         <Text style={styles.statLabel}>Savings</Text>
                     </View>
-                </Animated.View>
 
-                {/* Membership Card - Changed to Blue Gradient */}
-                <Animated.View 
-                    entering={FadeInDown.delay(400).springify()}
-                    style={styles.membershipCard}
-                >
+                </View>
+
+                <View style={styles.membershipCard}>
+
                     <LinearGradient
-                        colors={['#3B82F6', '#60A5FA', '#6ba3e4']} // Changed to Blue gradients
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
+                        colors={['#3B82F6','#60A5FA','#6ba3e4']}
                         style={styles.membershipGradient}
                     >
-                        <TouchableOpacity 
-                            onPress={() => router.push('/service-upgrade' as any)}
-                            activeOpacity={0.8}
+
+                        <TouchableOpacity
+                            onPress={()=>router.push('/service-upgrade' as any)}
                         >
+
                             <View style={styles.membershipContent}>
+
                                 <View style={styles.membershipLeft}>
+
                                     <View style={styles.membershipIcon}>
-                                        <Ionicons name="diamond" size={28} color="#FFFFFF" />
+                                        <Ionicons name="diamond" size={28} color="#fff"/>
                                     </View>
+
                                     <View>
                                         <Text style={styles.membershipTitle}>ServiceHub Gold</Text>
                                         <Text style={styles.membershipSubtitle}>Save 15% on every booking</Text>
                                     </View>
+
                                 </View>
+
                                 <View style={styles.membershipBadge}>
                                     <Text style={styles.membershipBadgeText}>ACTIVE</Text>
                                 </View>
-                            </View>
-                        </TouchableOpacity>
-                    </LinearGradient>
-                </Animated.View>
 
-                {/* Menu Items */}
-                <Animated.View 
-                    entering={FadeInDown.delay(600).springify()}
-                    style={styles.menuSection}
-                >
-                    {menuItems.map((item, index) => (
+                            </View>
+
+                        </TouchableOpacity>
+
+                    </LinearGradient>
+
+                </View>
+
+                <View style={styles.menuSection}>
+
+                    {menuItems.map((item,index)=>(
                         <TouchableOpacity
                             key={item.id}
                             style={[
                                 styles.menuItem,
-                                index !== menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: borderColor }
+                                index!==menuItems.length-1 && {borderBottomWidth:1,borderBottomColor:borderColor}
                             ]}
-                            onPress={() => router.push(item.route)}
-                            activeOpacity={0.7}
+                            onPress={()=>router.push(item.route)}
                         >
+
                             <View style={styles.menuItemLeft}>
-                                <View style={[styles.menuIcon, { backgroundColor: `${item.color}15` }]}>
-                                    <Ionicons name={item.icon as any} size={20} color={item.color} />
+
+                                <View style={[styles.menuIcon,{backgroundColor:`${item.color}15`}]}>
+                                    <Ionicons name={item.icon as any} size={20} color={item.color}/>
                                 </View>
-                                <View style={styles.menuTextContainer}>
+
+                                <View>
                                     <Text style={styles.menuTitle}>{item.title}</Text>
                                     <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
                                 </View>
+
                             </View>
-                            <Ionicons name="chevron-forward" size={18} color={textSecondaryColor} />
+
+                            <Ionicons name="chevron-forward" size={18} color={textSecondaryColor}/>
+
                         </TouchableOpacity>
                     ))}
-                </Animated.View>
 
-                {/* Divider */}
-                <View style={styles.divider} />
+                </View>
 
-                {/* Logout */}
-                <Animated.View 
-                    entering={FadeInDown.delay(700).springify()}
+                <View style={styles.divider}/>
+
+                <TouchableOpacity
+                    style={styles.logoutButton}
+                    onPress={onLogout}
                 >
-                    <TouchableOpacity 
-                        style={styles.logoutButton} 
-                        onPress={onLogout}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-                        <Text style={styles.logoutText}>Sign Out</Text>
-                    </TouchableOpacity>
-                </Animated.View>
+                    <Ionicons name="log-out-outline" size={20} color="#EF4444"/>
+                    <Text style={styles.logoutText}>Sign Out</Text>
+                </TouchableOpacity>
 
                 <Text style={styles.versionText}>Version 2.4.0 • Updated Feb 2024</Text>
+
             </ScrollView>
+
         </View>
+
     )
 }
