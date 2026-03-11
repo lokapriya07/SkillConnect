@@ -162,6 +162,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/lib/store";
+import { useRouter } from "expo-router";
 
 // Refined Data Structure with Icons
 const SETTINGS_SECTIONS = [
@@ -191,6 +192,7 @@ export default function Settings() {
   const { darkMode, toggleDarkMode, setDarkMode } = useAppStore();
   const [notifications, setNotifications] = useState(true);
   const [autoUpdate, setAutoUpdate] = useState(true);
+  const router = useRouter();
 
   // Load legacy settings from AsyncStorage (for migration)
   useEffect(() => {
@@ -276,7 +278,16 @@ export default function Settings() {
             />
           ) : (
             <TouchableOpacity 
-                onPress={() => Alert.alert(item.title, `Navigating to ${item.title}...`)}
+                // onPress={() => Alert.alert(item.title, `Navigating to ${item.title}...`)}
+                onPress={() => {
+  if (item.id === "privacy") {
+    router.push("/privacy-policy");
+  } else if (item.id === "terms") {
+    router.push("/terms");
+  } else if (item.id === "contact") {
+    router.push("/contact-support");
+  }
+}}
                 hitSlop={{ top: 10, bottom: 10, left: 20, right: 20 }}
             >
               <Ionicons name="chevron-forward" size={20} color={theme.subtext} />
