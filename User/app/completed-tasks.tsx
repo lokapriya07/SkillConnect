@@ -11,12 +11,15 @@ StyleSheet,
 ScrollView,
 Image,
 ActivityIndicator,
-RefreshControl
+RefreshControl,
+TouchableOpacity
 } from "react-native"
+import { useRouter } from "expo-router"
 
 export default function CompletedTasksScreen() {
 
 const { darkMode, user } = useAppStore()
+const router = useRouter()
 
 const [completedJobs,setCompletedJobs] = useState<any[]>([])
 const [loading,setLoading] = useState(true)
@@ -245,7 +248,6 @@ completedJobs.map((job:any)=>{
 const worker =
 job.hiredWorker || job.assignedWorker
 
-// Smart service name detection
 const serviceName =
 job.serviceName?.trim()
 ? toTitleCase(job.serviceName)
@@ -262,7 +264,16 @@ job.description
 
 return(
 
-<View key={job._id} style={styles.card}>
+<TouchableOpacity
+key={job._id}
+style={styles.card}
+onPress={() =>
+router.push({
+pathname: "/booking-details",
+params: { jobId: job._id }
+})
+}
+>
 
 <View style={styles.row}>
 
@@ -299,7 +310,7 @@ COMPLETED
 
 </View>
 
-</View>
+</TouchableOpacity>
 
 )
 

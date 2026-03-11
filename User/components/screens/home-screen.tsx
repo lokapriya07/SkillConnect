@@ -1102,8 +1102,17 @@ export default function HomeScreen() {
                 </Text>
 
                 <View style={styles.trackerFooter}>
-                  <Text style={styles.actionText}>
+                  {/* <Text style={styles.actionText}>
                     View Ranked Workers ({job.matchedWorkers?.length || 0})
+                  </Text> */}
+                  <Text style={styles.actionText}>
+                    View Ranked Workers (
+                    {(job as any).matchedWorkers?.length ||
+                      (job as any).bids?.length ||
+                      (job as any).proposals?.length ||
+                      (job as any).workers?.length ||
+                      0}
+                    )
                   </Text>
                   <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
                 </View>
