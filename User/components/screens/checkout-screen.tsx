@@ -172,8 +172,11 @@ export default function CheckoutScreen({ onBack, onConfirm, params }: CheckoutSc
           onConfirm();
         } else {
           // REGULAR BOOKING FLOW
-          // Determine if this is truly a bid flow (user submitted a custom bid amount)
-          const hasBidAmount = bidAmount && bidAmount !== "" && parseFloat(bidAmount) > 0;
+          // Determine if this is truly a bid/custom-request flow.
+          // IMPORTANT: Only treat as bid flow if the cart is EMPTY (no predefined service selected).
+          // If the cart has items, the user booked a predefined service — always use cart data,
+          // never the uploaded job description, even if an active job exists with a budget.
+          const hasBidAmount = cart.length === 0 && bidAmount && bidAmount !== "" && parseFloat(bidAmount) > 0;
           
           // Helper: clean up description names (remove repeated "service booking" text)
           const cleanName = (desc: string | undefined): string => {

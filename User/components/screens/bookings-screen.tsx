@@ -262,15 +262,19 @@ export default function BookingsScreen() {
     const allBookings = [
         ...userBookingsList,
         ...hiredJobs.map(job => {
-            // Build a smart short name: prefer serviceName, then first skill, then first 4 words of description
+            // Build a smart short name based on job type:
+            // - Predefined services: job.serviceName is always set by assign-worker → use it
+            // - Uploaded jobs (hired via bidding): no serviceName → show the user's problem description
             const toTitleCase = (s: string) => s.replace(/\b\w/g, c => c.toUpperCase());
+            // Strip the boilerplate " service booking" suffix that assign-worker appends to description
+            const cleanDesc = (job.description || '').replace(/\s*service\s+booking.*$/gi, '').trim();
             const smartName =
                 (job.serviceName && job.serviceName.trim())
                     ? toTitleCase(job.serviceName.trim())
-                    : (job.skillsRequired?.[0])
-                        ? toTitleCase(job.skillsRequired[0])
-                        : (job.description)
-                            ? toTitleCase(job.description.trim().split(/\s+/).slice(0, 5).join(' '))
+                    : (cleanDesc)
+                        ? cleanDesc.split(/\s+/).slice(0, 6).join(' ')
+                        : (job.skillsRequired?.[0])
+                            ? toTitleCase(job.skillsRequired[0])
                             : 'Service Booking';
 
             // Handle both hiredWorker (custom hire) and assignedWorker (predefined services)

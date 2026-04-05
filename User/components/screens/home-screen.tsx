@@ -651,7 +651,12 @@ import {
   ImageBackground,
   TouchableOpacity,
   View,
+  Linking,
+  ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView
 } from "react-native"
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get("window")
 
@@ -671,14 +676,14 @@ const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
 const BANNERS = [
   {
     id: '1',
-    categoryId: 'salon',
-    serviceId: 'salon-1', // CHANGED: Points to Home Cleaning (was salon-2)
-    image: 'https://cdn.shopify.com/s/files/1/0026/4549/1812/files/shutterstock_1236164359_1024x1024.jpg?v=1614305641',
-    title: 'Republic Day Sale',
-    subtitle: 'Flat 50% Off on all Spa Services',
-    offer: 'UPTO 50% OFF',
+    categoryId: 'cleaning',
+    serviceId: 'clean-1',
+    image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&auto=format&fit=crop',
+    title: '☀️ Summer Sale',
+    subtitle: 'Book any home service & save big this summer!',
+    offer: 'UP TO 60% OFF',
     searchHint: 'Home Cleaning',
-    color: '#FF9933'
+    color: '#FF6B35'
   },
   {
     id: '2',
@@ -768,6 +773,67 @@ export default function HomeScreen() {
   const borderColor = darkMode ? Colors.borderDark : Colors.border
   const trackerCardBg = darkMode ? Colors.gray[900] : Colors.white
   const trackerTextColor = darkMode ? "#A0A0A0" : "#666"
+
+  // --- AI Chat Assistant State ---
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [aiInput, setAiInput] = useState('');
+  const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
+    { role: 'ai', text: 'How can I help you today?' }
+  ]);
+  const [isAILoading, setIsAILoading] = useState(false);
+  const chatScrollRef = useRef<ScrollView>(null);
+  const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+  const handleSendAI = async () => {
+    if (!aiInput.trim()) return;
+    const userMsg = aiInput.trim();
+    setAiInput('');
+    setAiMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setIsAILoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: userMsg })
+      });
+      const data = await res.json();
+      if (data.reply) {
+        setAiMessages(prev => [...prev, { role: 'ai', text: data.reply }]);
+      } else {
+        setAiMessages(prev => [...prev, { role: 'ai', text: data.error || 'Please provide more details so I can help you better.' }]);
+      }
+    } catch (e) {
+      setAiMessages(prev => [...prev, { role: 'ai', text: 'Please provide more details so I can help you better.' }]);
+    } finally {
+      setIsAILoading(false);
+    }
+  };
+
+  const renderAiMessage = (text: string) => {
+    const parts = text.split(/Helpful Video:/i);
+    const mainText = parts[0].trim();
+    const videoText = parts.length > 1 ? parts[1].trim() : null;
+
+    return (
+      <View>
+        <Text style={{ color: msg => msg.role === 'user' ? '#fff' : '#333', fontSize: 14, lineHeight: 20 }}>{mainText}</Text>
+        {videoText && (
+          <TouchableOpacity
+            style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent(videoText.replace(/^\*\s*/, '').trim())}`)}
+          >
+            <Ionicons name="logo-youtube" size={16} color="#FF0000" style={{ marginRight: 6 }} />
+            <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }} numberOfLines={1}>
+              {videoText.replace(/^\*\s*/, '').trim()}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   useEffect(() => {
     if (user) {
@@ -987,6 +1053,57 @@ export default function HomeScreen() {
     catItem: { alignItems: 'center', gap: 8 },
     iconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: surfaceVariantColor, justifyContent: "center", alignItems: "center" },
     catLabel: { fontSize: 12, fontWeight: "500", color: textColor },
+
+    // ☀️ Summer Sale Banner Styles
+    summerSalePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255, 255, 255, 0.22)',
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.45)',
+      borderRadius: 30,
+      paddingHorizontal: 14,
+      paddingVertical: 5,
+      alignSelf: 'flex-start',
+      marginBottom: 4,
+      gap: 6,
+    },
+    summerSaleEmoji: { fontSize: 14 },
+    summerSaleText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 0.8,
+    },
+    summerSaleSubtitle: {
+      color: 'rgba(255, 255, 255, 0.92)',
+      fontSize: 12,
+      fontWeight: '500',
+      marginBottom: 6,
+    },
+
+    // AI Feature styles
+    aiCardContainer: { marginHorizontal: 20, marginBottom: 20, borderRadius: 16, overflow: 'hidden', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5 },
+    aiCardGradient: { padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    aiCardTextContainer: { flex: 1, paddingRight: 10 },
+    aiCardTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 6 },
+    aiCardSubtitle: { color: 'rgba(255, 255, 255, 0.9)', fontSize: 13, lineHeight: 18, marginBottom: 12 },
+    aiCardCtaRow: { flexDirection: 'row', alignItems: 'center' },
+    aiCardCtaText: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginRight: 4 },
+    aiIconContainer: { width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+    aiModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    aiModalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '85%', overflow: 'hidden' },
+    aiModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee' },
+    aiModalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+    aiModalSubtitle: { fontSize: 13, color: '#666', marginTop: 2 },
+    aiModalCloseBtn: { padding: 4 },
+    aiChatBody: { flex: 1, backgroundColor: '#f9f9f9' },
+    aiMessageBubble: { maxWidth: '80%', padding: 12, borderRadius: 16, marginBottom: 12 },
+    aiMessageUser: { alignSelf: 'flex-end', backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
+    aiMessageAi: { alignSelf: 'flex-start', backgroundColor: '#e9ecef', borderBottomLeftRadius: 4 },
+    aiInputContainer: { flexDirection: 'row', padding: 12, paddingBottom: Platform.OS === 'ios' ? 24 : 12, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: '#fff', alignItems: 'center' },
+    aiTextInput: { flex: 1, backgroundColor: '#f1f3f5', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: '#333', marginRight: 10 },
+    aiSendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   })
 
   const styles = getStyles()
@@ -995,10 +1112,20 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: backgroundColor }]}>
       <StatusBar barStyle="light-content" />
       <ImageBackground
-        source={{ uri: 'https://static.zoomnews.com/thumb/msid-107120950,width-1280,height-720,resizemode-75/107120950.jpg' }}
-        style={[styles.header, { height: 200 }]}
-        imageStyle={{ opacity: 0.7 }}
+        source={{ uri: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1200&auto=format&fit=crop' }}
+        style={[styles.header, { height: 240, backgroundColor: '#C0540A' }]}
+        imageStyle={{ opacity: 0.45 }}
       >
+        {/* Summer Sale gradient overlay */}
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'transparent',
+            borderBottomLeftRadius: 24,
+            borderBottomRightRadius: 24,
+          }}
+        />
         <TouchableOpacity
           style={styles.locationContainer}
           onPress={() => router.push("/location" as any)}
@@ -1012,7 +1139,16 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* ☀️ Summer Sale Banner Highlight */}
+        <View style={styles.summerSalePill}>
+          <Text style={styles.summerSaleEmoji}>☀️</Text>
+          <Text style={styles.summerSaleText}>SUMMER SALE · UP TO 60% OFF</Text>
+          <Text style={styles.summerSaleEmoji}>🔥</Text>
+        </View>
+        <Text style={styles.summerSaleSubtitle}>Book now & save big on home services!</Text>
+
         {/* Notification Bell in Header */}
+
         <TouchableOpacity
           style={styles.notiBtn}
           onPress={() => { setShowNotiPanel(true); fetchUserNotifications(); }}
@@ -1143,6 +1279,30 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
+
+        {/* Help Assistant Feature Card */}
+        <TouchableOpacity style={styles.aiCardContainer} onPress={() => setShowAIChat(true)} activeOpacity={0.9}>
+          <LinearGradient
+            colors={['#6366f1', '#8b5cf6', '#d946ef']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.aiCardGradient}
+          >
+            <View style={styles.aiCardTextContainer}>
+              <Text style={styles.aiCardTitle}>Solve Your Problems Instantly ⚡</Text>
+              <Text style={styles.aiCardSubtitle}>
+                Fix issues, learn device usage, and get step-by-step help instantly.
+              </Text>
+              <View style={styles.aiCardCtaRow}>
+                <Text style={styles.aiCardCtaText}>Ask Now</Text>
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </View>
+            </View>
+            <View style={styles.aiIconContainer}>
+              <Ionicons name="chatbubbles" size={24} color="#fff" />
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
 
         <View style={styles.carouselSection}>
           <FlatList
@@ -1331,6 +1491,68 @@ export default function HomeScreen() {
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal visible={showAIChat} animationType="slide" transparent={true}>
+        <KeyboardAvoidingView
+          style={styles.aiModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.aiModalContent}>
+            {/* Header */}
+            <View style={styles.aiModalHeader}>
+              <View>
+                <Text style={styles.aiModalTitle}>Assistant</Text>
+                <Text style={styles.aiModalSubtitle}>Quick help for your problems</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowAIChat(false)} style={styles.aiModalCloseBtn}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Chat Body */}
+            <ScrollView
+              ref={chatScrollRef}
+              style={styles.aiChatBody}
+              contentContainerStyle={{ padding: 16 }}
+              onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
+            >
+              {aiMessages.map((msg, idx) => (
+                <View key={idx} style={[styles.aiMessageBubble, msg.role === 'user' ? styles.aiMessageUser : styles.aiMessageAi]}>
+                  {msg.role === 'ai' ? renderAiMessage(msg.text) : (
+                    <Text style={{ color: '#fff', fontSize: 14 }}>{msg.text}</Text>
+                  )}
+                </View>
+              ))}
+              {isAILoading && (
+                <View style={[styles.aiMessageBubble, styles.aiMessageAi, { width: 60, alignItems: 'center' }]}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Input Footer */}
+            <View style={styles.aiInputContainer}>
+              <TextInput
+                style={styles.aiTextInput}
+                placeholder="Type your problem..."
+                placeholderTextColor="#999"
+                value={aiInput}
+                onChangeText={setAiInput}
+                onSubmitEditing={handleSendAI}
+                returnKeyType="send"
+              />
+              <TouchableOpacity
+                style={[styles.aiSendBtn, { backgroundColor: aiInput.trim() ? Colors.primary : '#ccc' }]}
+                onPress={handleSendAI}
+                disabled={!aiInput.trim() || isAILoading}
+              >
+                <Ionicons name="send" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </View>
   )
 }
