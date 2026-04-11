@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Platform,
   Modal,
-  Alert,
   ActivityIndicator,
   LayoutAnimation,
   RefreshControl,
@@ -180,22 +179,7 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, []);
 
-  const handleLogout = async () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout", style: "destructive",
-        onPress: async () => {
-          await AsyncStorage.removeItem("workerName");
-          await AsyncStorage.removeItem("userId");
-          await AsyncStorage.removeItem("is_verified_worker");
-          await AsyncStorage.removeItem("verification_requested");
-          await AsyncStorage.removeItem("user");
-          router.replace("/auth/login");
-        },
-      },
-    ]);
-  };
+
 
   return (
     <ScrollView
@@ -234,10 +218,6 @@ export default function DashboardScreen() {
             <Text style={styles.name} numberOfLines={1}>{workerName}</Text>
             <Text style={styles.subGreeting}>Ready to earn today?</Text>
           </View>
-          {/* Logout */}
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-            <Feather name="log-out" size={18} color="rgba(255,255,255,0.6)" />
-          </TouchableOpacity>
         </View>
 
         {/* Availability toggle */}
@@ -321,14 +301,16 @@ export default function DashboardScreen() {
               <View style={styles.profileIconWrap}>
                 <Feather name="user-check" size={15} color="#6366f1" />
               </View>
-              <Text style={styles.profileCardTitle}>Profile Strength</Text>
-            </View>
-            <View style={styles.pctBadge}>
-              <Text style={styles.pctText}>{profileCompletion}%</Text>
+              <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+                <Text style={styles.profileCardTitle}>Profile Strength</Text>
+                <View style={styles.pctBadge}>
+                  <Text style={styles.pctText}>{profileCompletion}%</Text>
+                </View>
+              </View>
             </View>
           </View>
           <View style={styles.progressWrap}>
-            <ProgressBar value={profileCompletion} style={{ fillColor: "#6366f1", height: 7, borderRadius: 4 }} />
+            <ProgressBar value={profileCompletion} fillColor="#6366f1" showPercentage={false} style={{ height: 7, borderRadius: 4 }} />
           </View>
           <Text style={styles.profileHint}>
             {profileCompletion < 50 ? "🚀 Complete your profile to unlock more jobs" : "✨ Almost there! Add a few more details"}
@@ -466,7 +448,7 @@ export default function DashboardScreen() {
       </View>
 
       {/* ── PORTFOLIO ── */}
-      <TouchableOpacity style={styles.portfolioCard} activeOpacity={0.8}>
+      <TouchableOpacity style={styles.portfolioCard} activeOpacity={0.8} onPress={() => router.push({ pathname: "/profile", params: { tab: "portfolio" } } as any)}>
         <View style={styles.portfolioIconWrap}>
           <Feather name="camera" size={22} color="#6366f1" />
         </View>
@@ -537,11 +519,7 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 12, color: "rgba(199,210,254,0.8)", marginBottom: 2 },
   name: { fontSize: 24, fontWeight: "800", color: "#fff", letterSpacing: -0.5, marginBottom: 2 },
   subGreeting: { fontSize: 12, color: "rgba(199,210,254,0.65)" },
-  logoutBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    justifyContent: "center", alignItems: "center",
-  },
+
 
   // Availability
   availRow: {
@@ -561,11 +539,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff", borderRadius: 22, padding: 18,
     ...SHADOW_MD,
   },
-  profileCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  profileCardTop: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
   profileCardLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   profileIconWrap: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#eef2ff", justifyContent: "center", alignItems: "center" },
   profileCardTitle: { fontSize: 15, fontWeight: "700", color: "#0f172a" },
-  pctBadge: { backgroundColor: "#eef2ff", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  pctBadge: { backgroundColor: "#eef2ff", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 18 },
   pctText: { fontSize: 13, fontWeight: "800", color: "#6366f1" },
   progressWrap: { marginBottom: 10 },
   profileHint: { fontSize: 12, color: "#64748b", marginBottom: 14, lineHeight: 17 },

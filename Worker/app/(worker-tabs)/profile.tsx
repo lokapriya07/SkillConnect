@@ -36,7 +36,7 @@ import {
   Camera,
   LogOut,
 } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useVerification } from '@/context/VerificationContext';
 
@@ -90,6 +90,13 @@ export default function ProfilePage({ navigation }: any) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
+  const params = useLocalSearchParams();
+
+  useEffect(() => {
+    if (params.tab) {
+      setActiveTab(params.tab as string);
+    }
+  }, [params.tab]);
 
   // --- NEW VERIFICATION STATES ---
   

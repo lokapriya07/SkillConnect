@@ -440,8 +440,8 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
 
         header:{
             paddingHorizontal:20,
-            paddingTop:insets.top+20,
-            paddingBottom:20,
+            paddingTop:insets.top,
+            paddingBottom:10,
             flexDirection:'row',
             justifyContent:'space-between',
             alignItems:'center'
@@ -607,16 +607,7 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
             fontSize:13
         },
 
-        membershipBadge:{
-            backgroundColor:'rgba(255,255,255,0.2)',
-            paddingHorizontal:12,
-            paddingVertical:6,
-            borderRadius:20
-        },
 
-        membershipBadgeText:{
-            color:'#fff'
-        },
 
         menuSection:{
             marginHorizontal:20,
@@ -810,10 +801,6 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
                                         <Text style={styles.membershipSubtitle}>Save 15% on every booking</Text>
                                     </View>
 
-                                </View>
-
-                                <View style={styles.membershipBadge}>
-                                    <Text style={styles.membershipBadgeText}>ACTIVE</Text>
                                 </View>
 
                             </View>

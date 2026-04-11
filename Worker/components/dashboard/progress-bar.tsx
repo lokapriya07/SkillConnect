@@ -5,6 +5,7 @@ interface ProgressBarProps {
   value: number
   label?: string
   showPercentage?: boolean
+  fillColor?: string
   style?: any
 }
 
@@ -12,6 +13,7 @@ export function ProgressBar({
   value,
   label,
   showPercentage = true,
+  fillColor,
   style,
 }: ProgressBarProps) {
   return (
@@ -29,6 +31,7 @@ export function ProgressBar({
         <View
           style={[
             styles.fill,
+            { backgroundColor: fillColor || "#3b82f6" },
             { width: `${Math.min(Math.max(value, 0), 100)}%` },
           ]}
         />
@@ -64,7 +67,6 @@ const styles = StyleSheet.create({
   },
   fill: {
     height: "100%",
-    backgroundColor: "#3b82f6", // primary
     borderRadius: 999,
   },
 })

@@ -234,20 +234,20 @@ export default function EarningsPage() {
             ) : (
                 transactions.map((tx) => (
                     <Card key={tx.id} style={styles.transactionCard}>
-                        <CardContent style={styles.txRow}>
-                            <View style={styles.txLeft}>
-                                <View style={[styles.iconCircle, styles.iconBg]}>
-                                    {getTransactionIcon(tx.type)}
+                        <CardContent>
+                            <View style={styles.txTopRow}>
+                                <View style={styles.txLeft}>
+                                    <View style={[styles.iconCircle, styles.iconBg]}>
+                                        {getTransactionIcon(tx.type)}
+                                    </View>
+                                    <Text style={styles.txTitle} numberOfLines={1} ellipsizeMode="tail">{tx.description}</Text>
                                 </View>
-                                <View>
-                                    <Text style={styles.txTitle}>{tx.description}</Text>
-                                    <Text style={styles.txDate}>{tx.date}</Text>
-                                </View>
-                            </View>
-                            <View style={styles.txRight}>
                                 <Text style={[styles.txAmount, { color: "#f59e0b" }]}>
                                     +{tx.amount} pts
                                 </Text>
+                            </View>
+                            <View style={styles.txBottomRow}>
+                                <Text style={styles.txDate}>{tx.date}</Text>
                                 <Badge color={getStatusColor(tx.status)}>{tx.status}</Badge>
                             </View>
                         </CardContent>
@@ -320,12 +320,12 @@ const styles = StyleSheet.create({
     txCard: { marginBottom: 8 },
     transactionCard: { marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
     iconBg: { backgroundColor: '#fde68a' },
-    txRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    txTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
     txLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+    txBottomRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     iconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#fef3c7", alignItems: "center", justifyContent: "center" },
-    txTitle: { fontSize: 14, fontWeight: "600", color: "#1e293b" },
+    txTitle: { fontSize: 14, fontWeight: "600", color: "#1e293b", flex: 1 },
     txDate: { fontSize: 12, color: "#94a3b8" },
-    txRight: { alignItems: "flex-end", gap: 4 },
     txAmount: { fontSize: 16, fontWeight: "700" },
     emptyState: { paddingVertical: 30, alignItems: "center", justifyContent: "center", gap: 12 },
     emptyStateText: { fontSize: 14, color: "#94a3b8", textAlign: 'center' },

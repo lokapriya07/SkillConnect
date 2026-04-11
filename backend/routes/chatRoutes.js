@@ -17,8 +17,14 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Message is required' });
         }
 
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            console.error('GEMINI_API_KEY is not configured');
+            return res.status(500).json({ error: 'AI service is not configured. Please contact support.' });
+        }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         
         const prompt = `You are a helpful assistant for service users.
 Give short, clear, step-by-step solutions.
@@ -34,10 +40,23 @@ User: ${message}`;
         const response = await result.response;
         const text = response.text();
 
+        if (!text || text.trim() === '') {
+            return res.status(500).json({ error: 'I apologize, but I could not generate a proper response. Could you please rephrase your question?' });
+        }
+
         res.json({ reply: text });
     } catch (error) {
-        console.error('Error with AI chat:', error);
-        res.status(500).json({ error: 'Please provide more details so I can help you better.' });
+        console.error('Error with AI chat:', error.message || error);
+        const errorMessage = error.message || '';
+        if (errorMessage.includes('API_KEY')) {
+            res.status(500).json({ error: 'AI service configuration error. Please contact support.' });
+        } else if (errorMessage.includes('quota') || errorMessage.includes('limit')) {
+            res.status(500).json({ error: 'AI service is temporarily busy. Please try again in a few moments.' });
+        } else if (errorMessage.includes('model') || errorMessage.includes('not found') || errorMessage.includes('404')) {
+            res.status(500).json({ error: 'AI model is currently updating. Please try again in a moment.' });
+        } else {
+            res.status(500).json({ error: 'Sorry, I encountered an issue. Please try again.' });
+        }
     }
 });
 
