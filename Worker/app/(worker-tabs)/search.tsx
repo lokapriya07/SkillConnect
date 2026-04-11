@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,10 @@ import {
   SafeAreaView,
   Platform,
   ActivityIndicator,
+  RefreshControl,
+  Alert,
+  Linking,
+  Image,
 } from "react-native";
 import {
   Search,
@@ -23,6 +27,21 @@ import {
   DollarSign,
   ChevronDown,
   Check,
+  Calendar,
+  CheckCircle,
+  Phone,
+  User,
+  Wrench,
+  Scissors,
+  Sparkles,
+  Hammer,
+  Navigation,
+  FileText,
+  PlayCircle,
+  Mic,
+  Play,
+  Pause,
+  ZoomIn,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -46,11 +65,16 @@ interface Job {
     rating?: number;
     jobsPosted?: number;
   };
-  budget?: {
-    min: number;
-    max: number;
-    type: "fixed" | "hourly";
-  };
+  budget?:
+    | number
+    | {
+        min: number;
+        max: number;
+        type: "fixed" | "hourly";
+      };
+  amount?: number;
+  duration?: string;
+  hours?: string | number;
   location: string;
   distance?: number;
   skills?: string[];
@@ -61,11 +85,59 @@ interface Job {
   category?: string;
   isUrgent?: boolean;
   matchScore?: number;
+  // Enhanced fields for comprehensive display
+  serviceName?: string;
+  userName?: string;
+  userPhone?: string;
+  totalAmount?: number;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  fullAddress?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  latitude?: number;
+  longitude?: number;
+  imagePath?: string;
+  videoPath?: string;
+  audioPath?: string;
+  status?: string;
 }
 
 const CATEGORIES = ["All Categories", "Plumbing", "Electrical", "HVAC", "Carpentry", "Painting"];
 const JOB_TYPES = ["All Types", "On-site", "Remote"];
 const DISTANCES = [5, 10, 15, 25, 50, 100];
+
+// --- Dynamic Icon & Color Mappers ---
+const getServiceIcon = (serviceName: string) => {
+  const name = serviceName?.toLowerCase() || "";
+  if (name.includes("haircut") || name.includes("salon") || name.includes("beauty")) return Scissors;
+  if (name.includes("cleaning") || name.includes("kitchen") || name.includes("bathroom") || name.includes("sofa")) return Sparkles;
+  if (name.includes("plumbing") || name.includes("tap") || name.includes("drain")) return Wrench;
+  if (name.includes("electrical") || name.includes("wiring") || name.includes("power")) return Zap;
+  if (name.includes("carpentry") || name.includes("wood") || name.includes("furniture")) return Hammer;
+  return Wrench;
+};
+
+const getServiceColor = (serviceName: string) => {
+  const name = serviceName?.toLowerCase() || "";
+  if (name.includes("haircut") || name.includes("salon") || name.includes("beauty")) return "#EC4899";
+  if (name.includes("cleaning") || name.includes("kitchen") || name.includes("bathroom") || name.includes("sofa")) return "#007BFF";
+  if (name.includes("plumbing") || name.includes("tap") || name.includes("drain")) return "#46A3FF";
+  if (name.includes("electrical") || name.includes("wiring") || name.includes("power")) return "#FFB800";
+  if (name.includes("carpentry") || name.includes("wood") || name.includes("furniture")) return "#8B4513";
+  return "#2563eb";
+};
+
+// Avatar color palette based on first letter
+const AVATAR_COLORS = [
+  "#2563eb", "#16a34a", "#dc2626", "#9333ea",
+  "#ea580c", "#0891b2", "#be185d", "#d97706",
+];
+const getAvatarColor = (name: string) => {
+  const code = (name || "C").charCodeAt(0);
+  return AVATAR_COLORS[code % AVATAR_COLORS.length];
+};
 
 // Helper function to format time
 const formatTimeAgo = (dateString: string) => {
@@ -85,20 +157,97 @@ const formatTimeAgo = (dateString: string) => {
 // Helper function to extract location string from GeoJSON or location object
 const getLocationString = (location: any) => {
   if (!location) return "Location TBD";
-  
+
   // If it's a string, return it directly
   if (typeof location === "string") return location;
-  
+
   // If it's a GeoJSON object (has type and coordinates)
   if (location.type && location.coordinates) {
     return "Current Location"; // or return coordinates if needed
   }
-  
+
   // If it's an object with address property
   if (location.address) return location.address;
-  
+
   // Default fallback
   return "Location TBD";
+};
+
+const getJobBudgetLabel = (job: any) => {
+  if (typeof job.budget === "number") {
+    return `₹${job.budget}`;
+  }
+
+  if (job.budget?.min || job.budget?.max) {
+    const min = job.budget.min ?? 0;
+    const max = job.budget.max ?? min;
+    return max > min ? `₹${min} - ₹${max}` : `₹${min}`;
+  }
+
+  if (job.totalAmount || job.amount || job.hiredAmount) {
+    return `₹${job.totalAmount || job.amount || job.hiredAmount}`;
+  }
+
+  return "₹0";
+};
+
+const getJobBudgetType = (job: any) => {
+  if (typeof job.budget === "object" && job.budget?.type === "hourly") return "Hourly";
+  if (typeof job.budget === "object" && job.budget?.type === "fixed") return "Fixed";
+  return job.totalAmount || job.amount || job.hiredAmount ? "Fixed" : "Hourly";
+};
+
+const getJobHoursLabel = (job: any) => {
+  if (job.duration) return job.duration;
+  if (job.hours) return `${job.hours}`;
+  if (job.estimatedHours) return `${job.estimatedHours}`;
+  if (job.scheduledTime) return `${job.scheduledTime}`;
+  if (job.scheduledDate) return `${job.scheduledDate}`;
+  return null;
+};
+
+// Enhanced address resolution with multiple fallbacks
+const resolveAddress = (job: any) => {
+  // Check job address fields in order of priority
+  if (job.fullAddress?.trim()) return job.fullAddress.trim();
+  if (job.address?.trim()) return job.address.trim();
+
+  // Build address from city/state if available
+  const parts = [];
+  if (job.address?.trim()) parts.push(job.address.trim());
+  if (job.city?.trim()) parts.push(job.city.trim());
+  if (job.state?.trim()) parts.push(job.state.trim());
+
+  if (parts.length > 0) return parts.join(', ');
+
+  // Check user address as fallback
+  const userAddress = job.userId?.fullAddress || job.userId?.address;
+  if (userAddress?.trim()) return userAddress.trim();
+
+  const userParts = [];
+  if (job.userId?.address?.trim()) userParts.push(job.userId.address.trim());
+  if (job.userId?.city?.trim()) userParts.push(job.userId.city.trim());
+  if (job.userId?.state?.trim()) userParts.push(job.userId.state.trim());
+
+  if (userParts.length > 0) return userParts.join(', ');
+
+  // If coordinates exist, return coordinates as fallback
+  const lat = job.location?.coordinates?.[1];
+  const lng = job.location?.coordinates?.[0];
+  if (lat && lng) {
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+
+  // Return "No Address" only if nothing is available
+  return "No Address";
+};
+
+// Smart title generation
+const getSmartName = (job: any) => {
+  if (job.serviceName?.trim()) return job.serviceName.trim();
+  if (job.skillsRequired?.[0]) return job.skillsRequired[0];
+  if (job.description?.trim()) return job.description.trim().split(/\s+/).slice(0, 5).join(' ');
+  return 'Service Booking';
 };
 
 export default function JobsPage() {
@@ -106,6 +255,8 @@ export default function JobsPage() {
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("recommended");
@@ -116,143 +267,382 @@ export default function JobsPage() {
   const [jobType, setJobType] = useState("All Types");
   const [distance, setDistance] = useState(25);
   const [activePicker, setActivePicker] = useState<"category" | "jobType" | null>(null);
-
+  // Enhanced modal states
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
   // Fetch jobs from backend
-  useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const workerId = await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
-        
-        if (!workerId) {
-          setError("Worker ID not found");
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker-feed/${workerId}`);
-        
-        if (!response.ok) {
-          throw new Error("Failed to fetch jobs");
-        }
-
-        const data = await response.json();
-        console.log('[SEARCH] Fetched jobs:', data.length);
-        setAllJobs(data || []);
-      } catch (err) {
-        console.error('[SEARCH] Fetch error:', err);
-        setError(err instanceof Error ? err.message : "Failed to load jobs");
-        setAllJobs([]);
-      } finally {
+  const fetchJobs = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else if (!allJobs.length) setLoading(true);
+      setError(null);
+      
+      const workerId = await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
+      
+      if (!workerId) {
+        setError("Worker ID not found");
         setLoading(false);
+        setRefreshing(false);
+        return;
       }
-    };
 
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker-feed/${workerId}`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch jobs");
+      }
+
+      const data = await response.json();
+      console.log('[SEARCH] Fetched jobs:', data.length);
+      setAllJobs(data || []);
+    } catch (err) {
+      console.error('[SEARCH] Fetch error:', err);
+      setError(err instanceof Error ? err.message : "Failed to load jobs");
+      if (!isRefresh) setAllJobs([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [allJobs.length]);
+
+  // Initial load + polling every 15 seconds
+  useEffect(() => {
     fetchJobs();
-  }, []);
+    pollingRef.current = setInterval(() => fetchJobs(), 15000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [fetchJobs]);
+
+  const onRefresh = useCallback(() => fetchJobs(true), [fetchJobs]);
+
+  // Build media URL safely
+  const getMediaUrl = (path: string | null | undefined) => {
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+    return `${API_URL}/${path.replace(/^\//, "")}`;
+  };
+
+  // --- Image Preview Functions ---
+  const openImagePreview = (url: string) => {
+    setPreviewImageUrl(url);
+    setImageZoom(1);
+    setImagePreviewVisible(true);
+  };
+
+  const closeImagePreview = () => {
+    setImagePreviewVisible(false);
+    setPreviewImageUrl(null);
+    setImageZoom(1);
+  };
+
+  const toggleZoom = () => {
+    setImageZoom(prev => prev === 1 ? 2 : 1);
+  };
+
+  // --- Google Maps Integration ---
+  const openInMaps = (job: Job) => {
+    const lat = job.latitude;
+    const lng = job.longitude;
+    const label = encodeURIComponent(job.serviceName || job.title || "Service Location");
+
+    let url: string;
+
+    if (lat && lng) {
+      // Use coordinates when available (most accurate)
+      if (Platform.OS === "ios") {
+        url = `maps:0,0?q=${lat},${lng}(${label})`;
+      } else {
+        url = `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+      }
+    } else if (job.address && job.address !== "Address not available") {
+      // Fallback: search by address string
+      const encodedAddress = encodeURIComponent(job.address);
+      url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+    } else {
+      Alert.alert("No Location", "This job doesn't have a location yet.");
+      return;
+    }
+
+    Linking.canOpenURL(url)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          // Final fallback: Google Maps web
+          const encodedAddress = encodeURIComponent(job.address || "");
+          Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
+        }
+      })
+      .catch(() => Alert.alert("Error", "Could not open maps"));
+  };
 
   const filteredJobs = useMemo(() => {
     let list = activeTab === "recommended" ? allJobs.slice(0, 5) : allJobs;
-    
+
     if (searchQuery) {
-      list = list.filter((j) => 
+      list = list.filter((j) =>
         j.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        j.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        j.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        j.serviceName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        j.skillsRequired?.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    }
+
+    // Apply category filter
+    if (category !== "All Categories") {
+      list = list.filter((j) =>
+        j.category === category ||
+        j.skillsRequired?.some(skill => skill.toLowerCase().includes(category.toLowerCase())) ||
+        j.serviceName?.toLowerCase().includes(category.toLowerCase())
       );
     }
 
     return list;
-  }, [searchQuery, activeTab, allJobs]);
+  }, [searchQuery, activeTab, allJobs, category]);
 
   // --- MODAL COMPONENTS ---
 
   const DetailsModal = () => {
     if (!selectedJob) return null;
-    
-    const clientName = selectedJob.client?.name || selectedJob.userId?.name || "Unknown Client";
+
+    const clientName = selectedJob.client?.name || selectedJob.userId?.name || selectedJob.userName || "Unknown Client";
     const clientRating = selectedJob.client?.rating || selectedJob.userId?.rating || 0;
     const clientJobs = selectedJob.client?.jobs || selectedJob.userId?.jobsPosted || 0;
     const skills = selectedJob.skills || selectedJob.skillsRequired || [];
     const postedTime = formatTimeAgo(selectedJob.createdAt || selectedJob.postedAt || new Date().toISOString());
+    const jobTitle = getSmartName(selectedJob);
+    const serviceColor = getServiceColor(jobTitle);
+    const ServiceIcon = getServiceIcon(jobTitle);
+    const resolvedAddress = resolveAddress(selectedJob);
 
     return (
-    <Modal visible={!!selectedJob} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { height: height * 0.85 }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Job Details</Text>
-            <TouchableOpacity onPress={() => setSelectedJob(null)}>
-              <X size={24} color="#0f172a" />
-            </TouchableOpacity>
-          </View>
+      <Modal visible={!!selectedJob} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { height: height * 0.9 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} numberOfLines={2}>{jobTitle}</Text>
+              <TouchableOpacity onPress={() => setSelectedJob(null)}>
+                <X size={24} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-            <View style={styles.titleRow}>
-              <Text style={[styles.jobTitle, { fontSize: 22 }]}>{selectedJob?.title || selectedJob?.description.slice(0, 50)}</Text>
-              {selectedJob?.isUrgent && (
-                <View style={styles.urgentBadge}>
-                  <Zap size={12} color="#ea580c" fill="#ea580c" />
-                  <Text style={styles.urgentText}>Urgent</Text>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              {/* Service Header with Icon */}
+              <View style={styles.serviceHeader}>
+                <View style={[styles.serviceIconWrap, { backgroundColor: serviceColor + '20' }]}>
+                  <ServiceIcon size={24} color={serviceColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.serviceTitle}>{jobTitle}</Text>
+                  {selectedJob?.isUrgent && (
+                    <View style={styles.urgentBadge}>
+                      <Zap size={12} color="#ea580c" fill="#ea580c" />
+                      <Text style={styles.urgentText}>Urgent</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Meta Information */}
+              <View style={styles.detailsMetaRow}>
+                <View style={styles.metaItem}>
+                  <MapPin size={16} color="#64748b" />
+                  <Text style={styles.metaText}>{resolvedAddress}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Clock size={16} color="#64748b" />
+                  <Text style={styles.metaText}>Posted {postedTime}</Text>
+                </View>
+              </View>
+
+              {/* Pricing Card */}
+              <View style={styles.detailsPricingCard}>
+                <View>
+                  <Text style={styles.detailsLabel}>Budget</Text>
+                  <Text style={styles.detailsValue}>{getJobBudgetLabel(selectedJob)}</Text>
+                </View>
+                <View style={styles.dividerVertical} />
+                <View>
+                  <Text style={styles.detailsLabel}>Type</Text>
+                  <Text style={styles.detailsValue}>{getJobBudgetType(selectedJob)}{selectedJob?.budget?.type === 'hourly' ? ' Rate' : ''}</Text>
+                </View>
+              </View>
+              {getJobHoursLabel(selectedJob) && (
+                <View style={styles.detailsMetaRow}>
+                  <View style={styles.metaItem}>
+                    <Clock size={16} color="#64748b" />
+                    <Text style={styles.metaText}>{getJobHoursLabel(selectedJob)}</Text>
+                  </View>
                 </View>
               )}
-            </View>
 
-            <View style={styles.detailsMetaRow}>
-              <View style={styles.metaItem}>
-                <MapPin size={16} color="#64748b" />
-                <Text style={styles.metaText}>{getLocationString(selectedJob?.location)}</Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Clock size={16} color="#64748b" />
-                <Text style={styles.metaText}>Posted {postedTime}</Text>
-              </View>
-            </View>
+              {/* Description */}
+              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.descriptionFull}>{selectedJob?.description}</Text>
 
-            <View style={styles.detailsPricingCard}>
-              <View>
-                <Text style={styles.detailsLabel}>Budget</Text>
-                <Text style={styles.detailsValue}>${selectedJob?.budget?.min || 0} - ${selectedJob?.budget?.max || 0}</Text>
-              </View>
-              <View style={styles.dividerVertical} />
-              <View>
-                <Text style={styles.detailsLabel}>Type</Text>
-                <Text style={styles.detailsValue}>{selectedJob?.budget?.type === 'fixed' ? 'Fixed Price' : 'Hourly'}</Text>
-              </View>
-            </View>
+              {/* Skills Required */}
+              {skills.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Required Skills</Text>
+                  <View style={styles.skillWrap}>
+                    {skills.map((skill) => (
+                      <View key={skill} style={styles.distChip}>
+                        <Text style={styles.distText}>{skill}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
 
-            <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.descriptionFull}>{selectedJob?.description}</Text>
-
-            {skills.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Required Skills</Text>
-                <View style={styles.skillWrap}>
-                  {skills.map((skill) => (
-                    <View key={skill} style={styles.distChip}>
-                      <Text style={styles.distText}>{skill}</Text>
+              {/* Client Information */}
+              <View style={styles.clientDetailsCard}>
+                <Text style={styles.sectionTitle}>About Client</Text>
+                <View style={styles.clientInfoRow}>
+                  <View style={[styles.clientAvatarLarge, { backgroundColor: getAvatarColor(clientName) }]}>
+                    <Text style={styles.clientAvatarInitial}>
+                      {(clientName || "C").charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.clientNameLarge}>{clientName}</Text>
+                    <View style={styles.clientMetaRow}>
+                      <Star size={14} color="#eab308" fill="#eab308" />
+                      <Text style={styles.clientMetaText}>{clientRating.toFixed(1)} Rating • {clientJobs} jobs posted</Text>
                     </View>
-                  ))}
+                    {selectedJob?.userPhone && (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(`tel:${selectedJob.userPhone}`)}
+                        style={styles.phoneRow}
+                      >
+                        <Phone size={13} color="#2563eb" />
+                        <Text style={styles.clientPhone}>{selectedJob.userPhone}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-              </>
-            )}
-
-            <View style={styles.clientDetailsCard}>
-              <Text style={styles.sectionTitle}>About Client</Text>
-              <Text style={styles.clientName}>{clientName}</Text>
-              <View style={styles.detailsMetaRow}>
-                <Star size={14} color="#eab308" fill="#eab308" />
-                <Text style={styles.clientMetaText}>{clientRating.toFixed(1)} Rating • {clientJobs} jobs posted</Text>
               </View>
-            </View>
-          </ScrollView>
 
-          <TouchableOpacity style={styles.submitFilter} onPress={() => { setSelectedJob(null); alert("Application Sent!"); }}>
-            <Text style={styles.submitFilterText}>Submit Proposal</Text>
-          </TouchableOpacity>
+              {/* Service Address */}
+              {resolvedAddress && resolvedAddress !== "No Address" && (
+                <View style={styles.addressSection}>
+                  <Text style={styles.sectionTitle}>Service Address</Text>
+                  <TouchableOpacity
+                    style={styles.addressCard}
+                    onPress={() => selectedJob && openInMaps(selectedJob)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.addressIconWrap}>
+                      <MapPin size={18} color="#EA4335" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.addressText}>{resolvedAddress}</Text>
+                      {selectedJob.latitude && selectedJob.longitude && (
+                        <Text style={styles.coordinatesText}>
+                          📍 {selectedJob.latitude.toFixed(4)}, {selectedJob.longitude.toFixed(4)}
+                        </Text>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.navigateBtn}
+                      onPress={() => selectedJob && openInMaps(selectedJob)}
+                    >
+                      <Navigation size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Uploaded Media */}
+              {(selectedJob?.imagePath || selectedJob?.videoPath || selectedJob?.audioPath) && (
+                <View style={styles.mediaSection}>
+                  <Text style={styles.sectionTitle}>Uploaded Media</Text>
+
+                  {/* Image Thumbnail */}
+                  {selectedJob.imagePath && (() => {
+                    const imgUrl = getMediaUrl(selectedJob.imagePath);
+                    return imgUrl ? (
+                      <TouchableOpacity
+                        onPress={() => openImagePreview(imgUrl)}
+                        style={styles.mediaThumbnailWrap}
+                        activeOpacity={0.85}
+                      >
+                        <Image
+                          source={{ uri: imgUrl }}
+                          style={styles.mediaThumbnail}
+                          resizeMode="cover"
+                        />
+                        <View style={styles.mediaOverlayTag}>
+                          <Search size={12} color="#fff" />
+                          <Text style={styles.mediaOverlayText}>Tap to enlarge</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ) : null;
+                  })()}
+
+                  {/* Video Link */}
+                  {selectedJob.videoPath && (() => {
+                    const vidUrl = getMediaUrl(selectedJob.videoPath);
+                    return vidUrl ? (
+                      <TouchableOpacity
+                        style={styles.mediaLinkCard}
+                        onPress={() => Linking.openURL(vidUrl)}
+                      >
+                        <View style={[styles.mediaLinkIcon, { backgroundColor: "#eff6ff" }]}>
+                          <PlayCircle size={20} color="#2563eb" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.mediaLinkTitle}>Video Recording</Text>
+                          <Text style={styles.mediaLinkSub}>Tap to play video</Text>
+                        </View>
+                        <Search size={16} color="#94a3b8" />
+                      </TouchableOpacity>
+                    ) : null;
+                  })()}
+
+                  {/* Audio Link */}
+                  {selectedJob.audioPath && (() => {
+                    const audUrl = getMediaUrl(selectedJob.audioPath);
+                    return audUrl ? (
+                      <TouchableOpacity
+                        style={styles.mediaLinkCard}
+                        onPress={() => Linking.openURL(audUrl)}
+                      >
+                        <View style={[styles.mediaLinkIcon, { backgroundColor: "#f0fdf4" }]}>
+                          <Mic size={20} color="#16a34a" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.mediaLinkTitle}>Audio Recording</Text>
+                          <Text style={styles.mediaLinkSub}>Tap to play audio</Text>
+                        </View>
+                        <Search size={16} color="#94a3b8" />
+                      </TouchableOpacity>
+                    ) : null;
+                  })()}
+                </View>
+              )}
+
+              {/* Match Score */}
+              {selectedJob.matchScore && (
+                <View style={styles.matchScoreCard}>
+                  <Text style={styles.sectionTitle}>Match Score</Text>
+                  <View style={styles.matchScoreRow}>
+                    <Text style={styles.matchScoreText}>{selectedJob.matchScore}% Match</Text>
+                    <View style={styles.matchScoreBar}>
+                      <View style={[styles.matchScoreFill, { width: `${selectedJob.matchScore}%` }]} />
+                    </View>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.submitFilter} onPress={() => { setSelectedJob(null); alert("Application Sent!"); }}>
+              <Text style={styles.submitFilterText}>Submit Proposal</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
     );
   };
 
@@ -270,6 +660,33 @@ export default function JobsPage() {
           <TouchableOpacity onPress={() => setActivePicker(null)} style={styles.pickerClose}>
             <Text style={styles.pickerCloseText}>Cancel</Text>
           </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // --- IMAGE PREVIEW MODAL ---
+
+  const ImagePreviewModal = () => (
+    <Modal visible={imagePreviewVisible} animationType="fade" transparent>
+      <View style={styles.imagePreviewOverlay}>
+        <View style={styles.imagePreviewContainer}>
+          <View style={styles.imagePreviewHeader}>
+            <TouchableOpacity onPress={closeImagePreview} style={styles.imagePreviewClose}>
+              <X size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={toggleZoom} style={styles.imagePreviewZoom}>
+              <ZoomIn size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <Image
+            source={{ uri: previewImageUrl }}
+            style={[
+              styles.imagePreviewImage,
+              imageZoom && { width: width * 1.5, height: height * 0.8 }
+            ]}
+            resizeMode={imageZoom ? "contain" : "contain"}
+          />
         </View>
       </View>
     </Modal>
@@ -309,7 +726,14 @@ export default function JobsPage() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.listContainer}>
+      <ScrollView contentContainerStyle={styles.listContainer} refreshControl={
+        <RefreshControl 
+          refreshing={refreshing} 
+          onRefresh={onRefresh} 
+          colors={["#2563eb"]} 
+          tintColor="#2563eb" 
+        />
+      }>
         {loading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#2563eb" />
@@ -320,24 +744,7 @@ export default function JobsPage() {
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity 
               style={styles.retryBtn}
-              onPress={() => {
-                setLoading(true);
-                const fetchJobs = async () => {
-                  try {
-                    const workerId = await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
-                    if (!workerId) return;
-                    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker-feed/${workerId}`);
-                    const data = await response.json();
-                    setAllJobs(data || []);
-                    setError(null);
-                  } catch (err) {
-                    setError("Failed to load jobs");
-                  } finally {
-                    setLoading(false);
-                  }
-                };
-                fetchJobs();
-              }}
+              onPress={() => fetchJobs()}
             >
               <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
@@ -379,9 +786,15 @@ export default function JobsPage() {
                 <View style={styles.metaRow}>
                   <View style={styles.metaItem}>
                     <DollarSign size={14} color="#0f172a" />
-                    <Text style={styles.priceText}>${job.budget?.min || 0}-${job.budget?.max || 0}</Text>
-                    <Text style={styles.budgetType}> {job.budget?.type === 'fixed' ? 'Fixed' : 'Hourly'}</Text>
+                    <Text style={styles.priceText}>{getJobBudgetLabel(job)}</Text>
+                    <Text style={styles.budgetType}> {getJobBudgetType(job)}</Text>
                   </View>
+                  {getJobHoursLabel(job) && (
+                    <View style={styles.metaItem}>
+                      <Clock size={14} color="#64748b" />
+                      <Text style={styles.metaText}>{getJobHoursLabel(job)}</Text>
+                    </View>
+                  )}
                   <View style={styles.metaItem}>
                     <MapPin size={14} color="#64748b" />
                     <Text style={styles.metaText}>{getLocationString(job.location)}</Text>
@@ -404,6 +817,7 @@ export default function JobsPage() {
 
       {/* MODALS */}
       <DetailsModal />
+      <ImagePreviewModal />
 
       <Modal visible={isFilterOpen} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -535,5 +949,41 @@ const styles = StyleSheet.create({
   skillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   clientDetailsCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginTop: 20, backgroundColor: '#fff' },
   clientName: { fontSize: 16, fontWeight: 'bold', color: '#0f172a' },
-  clientMetaText: { fontSize: 14, color: '#64748b', marginLeft: 5 }
+  clientMetaText: { fontSize: 14, color: '#64748b', marginLeft: 5 },
+  serviceHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 15 },
+  serviceIconWrap: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  serviceTitle: { fontSize: 18, fontWeight: 'bold', color: '#0f172a', flex: 1 },
+  clientInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  clientAvatarLarge: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  clientAvatarInitial: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  clientNameLarge: { fontSize: 16, fontWeight: 'bold', color: '#0f172a', marginBottom: 4 },
+  clientMetaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  clientPhone: { fontSize: 14, color: '#2563eb', marginLeft: 6, textDecorationLine: 'underline' },
+  addressSection: { marginTop: 20 },
+  addressCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  addressIconWrap: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  addressText: { fontSize: 15, color: '#0f172a', fontWeight: '500', flex: 1 },
+  coordinatesText: { fontSize: 12, color: '#64748b', marginTop: 4 },
+  navigateBtn: { backgroundColor: '#EA4335', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  mediaSection: { marginTop: 20 },
+  mediaThumbnailWrap: { position: 'relative', marginBottom: 12 },
+  mediaThumbnail: { width: '100%', height: 200, borderRadius: 12 },
+  mediaOverlayTag: { position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.7)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
+  mediaOverlayText: { color: '#fff', fontSize: 11, fontWeight: '500' },
+  mediaLinkCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 8 },
+  mediaLinkIcon: { width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  mediaLinkTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
+  mediaLinkSub: { fontSize: 13, color: '#64748b', marginTop: 2 },
+  matchScoreCard: { backgroundColor: '#f0f9ff', padding: 16, borderRadius: 12, marginTop: 20, borderWidth: 1, borderColor: '#e0f2fe' },
+  matchScoreRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  matchScoreText: { fontSize: 16, fontWeight: 'bold', color: '#0369a1' },
+  matchScoreBar: { flex: 1, height: 6, backgroundColor: '#e0f2fe', borderRadius: 3 },
+  matchScoreFill: { height: '100%', backgroundColor: '#0369a1', borderRadius: 3 },
+  imagePreviewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  imagePreviewContainer: { width: width * 0.95, height: height * 0.8, backgroundColor: '#000', borderRadius: 12, overflow: 'hidden' },
+  imagePreviewHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
+  imagePreviewClose: { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8 },
+  imagePreviewZoom: { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8 },
+  imagePreviewImage: { width: width * 0.95, height: height * 0.8, resizeMode: 'contain' }
 });

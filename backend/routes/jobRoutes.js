@@ -999,6 +999,15 @@ router.put('/worker/:jobId/complete', async (req, res) => {
             return res.status(404).json({ success: false, error: "Job not found" });
         }
 
+        // Increment completedJobs for the worker
+        const workerId = job.assignedWorker?.workerId || job.hiredWorker?.workerId;
+        if (workerId) {
+            await Work.findOneAndUpdate(
+                { userId: workerId },
+                { $inc: { completedJobs: 1 } }
+            );
+        }
+
         // Notify User - Job Completed with rating prompt
         if (job.userId) {
             const workerName = job.hiredWorker?.workerName || job.assignedWorker?.workerName || 'The worker';

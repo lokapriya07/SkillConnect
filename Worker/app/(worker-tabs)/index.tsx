@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -32,6 +32,15 @@ export default function DashboardScreen() {
   const [loadingJobs, setLoadingJobs] = useState(true);
   const { currentLocation } = useAppStore();
   const [profileCompletion, setProfileCompletion] = useState(0);
+  const [rating, setRating] = useState("0");
+  const [completed, setCompleted] = useState("0");
+  const [onTime, setOnTime] = useState("0%");
+  const [assignedJobs, setAssignedJobs] = useState([]);
+  const [todayEarnings, setTodayEarnings] = useState("0");
+  const [weekEarnings, setWeekEarnings] = useState("0");
+  const [showDetailedEarnings, setShowDetailedEarnings] = useState(false);
+  const [earningsHistory, setEarningsHistory] = useState<any[]>([]);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleIgnore = (jobId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -78,11 +87,55 @@ export default function DashboardScreen() {
     finally { setLoadingJobs(false); }
   };
 
+  const fetchAssignedJobs = async (workerId: string) => {
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/jobs/worker/${workerId}/assigned-jobs`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setAssignedJobs(data.jobs);
+          const completedCount = data.jobs.filter((job: any) => job.status === 'completed').length;
+          setCompleted(completedCount.toString());
+
+          const completedJobs = data.jobs.filter((job: any) => job.status === 'completed');
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const weekStart = new Date(today);
+          weekStart.setDate(today.getDate() - today.getDay());
+
+          const todayEarn = completedJobs
+            .filter((job: any) => new Date(job.updatedAt) >= today)
+            .reduce((sum: number, job: any) => sum + (job.hiredAmount || job.totalAmount || 0), 0);
+          const weekEarn = completedJobs
+            .filter((job: any) => new Date(job.updatedAt) >= weekStart)
+            .reduce((sum: number, job: any) => sum + (job.hiredAmount || job.totalAmount || 0), 0);
+
+          setTodayEarnings(todayEarn.toString());
+          setWeekEarnings(weekEarn.toString());
+
+          // Build earnings history for detailed view
+          const history = completedJobs.map((job: any) => ({
+            id: job._id,
+            title: job.serviceName || job.description || "Service",
+            amount: job.hiredAmount || job.totalAmount || 0,
+            date: new Date(job.updatedAt).toLocaleDateString(),
+            time: new Date(job.updatedAt).toLocaleTimeString(),
+            client: job.userName || "Client",
+            status: "completed",
+          })).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setEarningsHistory(history);
+        }
+      }
+    } catch (error) { console.error("Fetch assigned jobs error:", error); }
+  };
+
   const initializeDashboard = async () => {
     try {
       setLoadingJobs(true);
       const savedName = await AsyncStorage.getItem("workerName");
-      const workerId = await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
+      const userStr = await AsyncStorage.getItem("user");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const workerId = user?._id || user?.id || await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
       if (savedName) setWorkerName(savedName);
       if (workerId) {
         const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/work/profile/${workerId}`);
@@ -90,7 +143,14 @@ export default function DashboardScreen() {
         if (result.success && result.data) {
           setWorkerName(result.data.name || "Worker");
           setProfileCompletion(result.data.completionPercentage || 0);
-        } else { setProfileCompletion(0); }
+          setRating(result.data.averageRating ? result.data.averageRating.toFixed(1) : "0");
+          setOnTime(result.data.onTimePercentage ? `${result.data.onTimePercentage}%` : "0%");
+        } else {
+          setProfileCompletion(0);
+          setRating("0");
+          setOnTime("0%");
+        }
+        await fetchAssignedJobs(workerId);
         await fetchMatchedJobs(workerId);
       }
     } catch (error) { console.error("Dashboard Load Error:", error); setProfileCompletion(0); }
@@ -98,6 +158,21 @@ export default function DashboardScreen() {
   };
 
   useEffect(() => { initializeDashboard(); }, []);
+
+  // Polling for dynamic updates
+  useEffect(() => {
+    pollingRef.current = setInterval(async () => {
+      const userStr = await AsyncStorage.getItem("user");
+      const user = userStr ? JSON.parse(userStr) : null;
+      const workerId = user?._id || user?.id || await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
+      if (workerId) {
+        await fetchAssignedJobs(workerId);
+      }
+    }, 15000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
@@ -189,6 +264,53 @@ export default function DashboardScreen() {
       {/* Location modal */}
       <Modal visible={isLocationModalVisible} animationType="slide" presentationStyle="pageSheet">
         <LocationScreen onLocationSelected={() => setIsLocationModalVisible(false)} />
+      </Modal>
+
+      {/* ── DETAILED EARNINGS MODAL ── */}
+      <Modal visible={showDetailedEarnings} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Detailed Earnings</Text>
+            <TouchableOpacity onPress={() => setShowDetailedEarnings(false)} style={styles.closeBtn}>
+              <Feather name="x" size={24} color="#6366f1" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {earningsHistory.length > 0 ? (
+              earningsHistory.map((earning: any, idx: number) => (
+                <View key={idx} style={styles.earningItem}>
+                  <View style={styles.earningItemLeft}>
+                    <View style={styles.earningItemIconWrap}>
+                      <Feather name="check-circle" size={16} color="#10b981" />
+                    </View>
+                    <View>
+                      <Text style={styles.earningItemTitle} numberOfLines={1}>{earning.title}</Text>
+                      <Text style={styles.earningItemClient}>{earning.client}</Text>
+                      <Text style={styles.earningItemDate}>{earning.date} at {earning.time}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.earningItemAmount}>₹{earning.amount}</Text>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyEarnings}>
+                <Feather name="inbox" size={40} color="#cbd5e1" />
+                <Text style={styles.emptyEarningsText}>No completed jobs yet</Text>
+              </View>
+            )}
+          </ScrollView>
+          {earningsHistory.length > 0 && (
+            <View style={styles.modalFooter}>
+              <View style={styles.earningsTotalRow}>
+                <Text style={styles.earningsTotalLabel}>Total Earnings</Text>
+                <Text style={styles.earningsTotalAmount}>₹{earningsHistory.reduce((sum: number, e: any) => sum + e.amount, 0)}</Text>
+              </View>
+              <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowDetailedEarnings(false)}>
+                <Text style={styles.closeModalBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </Modal>
 
       {/* ── PROFILE STRENGTH CARD ── */}
@@ -299,9 +421,9 @@ export default function DashboardScreen() {
       {/* ── STATS ── */}
       <View style={styles.statsRow}>
         {[
-          { label: "Rating", value: "4.7", icon: "star", colors: ["#fbbf24", "#f59e0b"] },
-          { label: "Completed", value: "42", icon: "briefcase", colors: ["#6366f1", "#4f46e5"] },
-          { label: "On-time", value: "96%", icon: "clock", colors: ["#10b981", "#059669"] },
+          { label: "Rating", value: rating, icon: "star", colors: ["#fbbf24", "#f59e0b"] },
+          { label: "Completed", value: completed, icon: "briefcase", colors: ["#6366f1", "#4f46e5"] },
+          { label: "On-time", value: onTime, icon: "clock", colors: ["#10b981", "#059669"] },
         ].map((item) => (
           <View key={item.label} style={styles.statCard}>
             <LinearGradient colors={item.colors as any} style={styles.statGrad}>
@@ -322,22 +444,22 @@ export default function DashboardScreen() {
             </View>
             <Text style={styles.earningsTitle}>Earnings Overview</Text>
           </View>
-          <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowDetailedEarnings(true)}><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
         </View>
         <View style={styles.earningsGrid}>
           <View style={styles.earningBox}>
             <Text style={styles.earningLabel}>Today</Text>
-            <Text style={styles.earningAmt}>₹900</Text>
+            <Text style={styles.earningAmt}>₹{todayEarnings}</Text>
             <Text style={styles.earningTrend}>↑ +12%</Text>
           </View>
           <View style={styles.earningDivider} />
           <View style={styles.earningBox}>
             <Text style={styles.earningLabel}>This Week</Text>
-            <Text style={styles.earningAmt}>₹5,400</Text>
+            <Text style={styles.earningAmt}>₹{weekEarnings}</Text>
             <Text style={styles.earningTrend}>↑ +8%</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.viewDetails}>
+        <TouchableOpacity style={styles.viewDetails} onPress={() => setShowDetailedEarnings(true)}>
           <Text style={styles.viewDetailsText}>View Detailed Earnings</Text>
           <Feather name="arrow-right" size={13} color="#6366f1" />
         </TouchableOpacity>
@@ -563,4 +685,48 @@ const styles = StyleSheet.create({
   portfolioIconWrap: { width: 50, height: 50, borderRadius: 15, backgroundColor: "#eef2ff", justifyContent: "center", alignItems: "center" },
   portfolioTitle: { fontSize: 15, fontWeight: "700", color: "#0f172a", marginBottom: 3 },
   portfolioSub: { fontSize: 12, color: "#64748b" },
+
+  // ── DETAILED EARNINGS MODAL
+  modalContainer: { flex: 1, backgroundColor: "#f1f5f9", paddingTop: Platform.OS === "ios" ? 60 : 44 },
+  modalHeader: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#e2e8f0",
+  },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: "#0f172a" },
+  closeBtn: { padding: 8 },
+  modalContent: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
+  earningItem: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    backgroundColor: "#fff", paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12,
+    marginBottom: 10, borderWidth: 1, borderColor: "#e2e8f0",
+  },
+  earningItemLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  earningItemIconWrap: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "#f0fdf4", justifyContent: "center", alignItems: "center",
+  },
+  earningItemTitle: { fontSize: 13, fontWeight: "700", color: "#0f172a" },
+  earningItemClient: { fontSize: 12, color: "#64748b", marginTop: 2 },
+  earningItemDate: { fontSize: 11, color: "#94a3b8", marginTop: 2 },
+  earningItemAmount: { fontSize: 16, fontWeight: "900", color: "#0f172a" },
+  emptyEarnings: {
+    alignItems: "center", justifyContent: "center", paddingvertical: 60,
+  },
+  emptyEarningsText: { fontSize: 16, color: "#94a3b8", marginTop: 12, fontWeight: "500" },
+  modalFooter: {
+    borderTopWidth: 1, borderTopColor: "#e2e8f0",
+    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: "#fff",
+    paddingBottom: Platform.OS === "ios" ? 30 : 14,
+  },
+  earningsTotalRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#f1f5f9",
+  },
+  earningsTotalLabel: { fontSize: 14, fontWeight: "600", color: "#64748b" },
+  earningsTotalAmount: { fontSize: 20, fontWeight: "900", color: "#0f172a" },
+  closeModalBtn: {
+    backgroundColor: "#6366f1", paddingVertical: 12, borderRadius: 10,
+    alignItems: "center",
+  },
+  closeModalBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });
