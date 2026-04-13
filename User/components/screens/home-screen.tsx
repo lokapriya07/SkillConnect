@@ -518,7 +518,14 @@ export default function HomeScreen() {
         <Text style={styles.summerSaleSubtitle}>Book now & save big on home services!</Text>
 
         {/* Notification Bell in Header */}
+        {/* Earnings Icon (Styled like Worker Dashboard) */}
 
+<TouchableOpacity
+  style={[styles.notiBtn, { right: 60 }]} // move left of notification
+  onPress={() => router.push("/earnings")} // change route if needed
+>
+  <Ionicons name="wallet-outline" size={22} color="#fff" />
+</TouchableOpacity>
         <TouchableOpacity
           style={styles.notiBtn}
           onPress={() => { setShowNotiPanel(true); fetchUserNotifications(); }}
