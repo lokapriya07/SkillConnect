@@ -182,22 +182,56 @@ export default function HomeScreen() {
     }
   };
 
-  const renderAiMessage = (text: string) => {
+  const renderRichText = (text: string, color: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return (
+      <Text style={{ color, fontSize: 14, lineHeight: 20 }}>
+        {parts.map((part, index) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return <Text key={index} style={{ fontWeight: 'bold' }}>{part.slice(2, -2)}</Text>;
+          } else {
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            const urlParts = part.split(urlRegex);
+            return urlParts.map((urlPart, idx) => {
+              if (urlRegex.test(urlPart)) {
+                return (
+                  <TouchableOpacity key={`${index}-${idx}`} onPress={() => Linking.openURL(urlPart)}>
+                    <Text style={{ color: 'blue', textDecorationLine: 'underline' }}>{urlPart}</Text>
+                  </TouchableOpacity>
+                );
+              } else {
+                return <Text key={`${index}-${idx}`}>{urlPart}</Text>;
+              }
+            });
+          }
+        })}
+      </Text>
+    );
+  };
+
+  const renderAiMessage = (text: string, msg: any) => {
     const parts = text.split(/Helpful Video:/i);
     const mainText = parts[0].trim();
     const videoText = parts.length > 1 ? parts[1].trim() : null;
 
+    const textColor = msg.role === 'user' ? '#fff' : '#333';
+    const lines = mainText.split('\n');
+
     return (
       <View>
-        <Text style={{ color: msg => msg.role === 'user' ? '#fff' : '#333', fontSize: 14, lineHeight: 20 }}>{mainText}</Text>
+        {lines.map((line, index) => (
+          <View key={index} style={{ marginBottom: index < lines.length - 1 ? 4 : 0 }}>
+            {renderRichText(line, textColor)}
+          </View>
+        ))}
         {videoText && (
           <TouchableOpacity
-            style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}
+            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,0,0,0.1)', padding: 8, borderRadius: 8 }}
             onPress={() => Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent(videoText.replace(/^\*\s*/, '').trim())}`)}
           >
-            <Ionicons name="logo-youtube" size={16} color="#FF0000" style={{ marginRight: 6 }} />
-            <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }} numberOfLines={1}>
-              {videoText.replace(/^\*\s*/, '').trim()}
+            <Ionicons name="logo-youtube" size={18} color="#FF0000" style={{ marginRight: 8 }} />
+            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline', flex: 1 }} numberOfLines={2}>
+              🎥 Helpful Video: {videoText.replace(/^\*\s*/, '').trim()}
             </Text>
           </TouchableOpacity>
         )}
@@ -895,7 +929,7 @@ export default function HomeScreen() {
             >
               {aiMessages.map((msg, idx) => (
                 <View key={idx} style={[styles.aiMessageBubble, msg.role === 'user' ? styles.aiMessageUser : styles.aiMessageAi]}>
-                  {msg.role === 'ai' ? renderAiMessage(msg.text) : (
+                  {msg.role === 'ai' ? renderAiMessage(msg.text, msg) : (
                     <Text style={{ color: '#fff', fontSize: 14 }}>{msg.text}</Text>
                   )}
                 </View>
