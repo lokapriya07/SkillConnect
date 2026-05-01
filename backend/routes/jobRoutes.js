@@ -88,6 +88,32 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Skill category mapping for better matching
+const skillCategories = {
+    plumbing: ['plumbing', 'drain_cleaning', 'tap_repair', 'water_tank_repair', 'pipe_repair', 'leak_detection', 'installation'],
+    electrical: ['electrical', 'wiring', 'fan_repair', 'switchboard_fix', 'repair', 'installation'],
+    cleaning: ['cleaning', 'deep_cleaning', 'bathroom_cleaning', 'sofa_cleaning', 'kitchen_cleaning', 'house_cleaning'],
+    ac: ['ac_repair', 'ac_installation', 'ac_service', 'air_conditioning'],
+    appliance: ['appliance', 'refrigerator_repair', 'washing_machine', 'microwave_repair'],
+    carpentry: ['carpentry', 'furniture_assembly', 'door_lock_repair', 'cupboard_repair', 'wood_work', 'furniture', 'polishing'],
+    painting: ['painting', 'wall_putty', 'waterproofing', 'interior_design', 'wall_painting'],
+    pest: ['pest_control', 'termite_treatment', 'rodent_control', 'cockroach', 'ant', 'termite', 'spider', 'bug', 'insect_control'],
+    gardening: ['gardening', 'landscaping', 'plant_care', 'lawn_care'],
+    salon: ['beauty_salon', 'haircut', 'massage', 'makeup_artist', 'styling', 'grooming', 'spa', 'facial', 'hair_styling', 'beard', 'barber'],
+    moving: ['moving', 'packing', 'lifting', 'transport'],
+    repair: ['repair', 'maintenance', 'handyman', 'general_handyman'],
+    masonry: ['masonry', 'tile_fixing', 'construction', 'welding']
+};
+
+const getSkillCategory = (skill) => {
+    for (const [category, skills] of Object.entries(skillCategories)) {
+        if (skills.some(catSkill => skill.includes(catSkill) || catSkill.includes(skill))) {
+            return category;
+        }
+    }
+    return null;
+};
+
 // --- 1. USER UPLOADS JOB ---
 router.post(
     '/upload',
@@ -154,61 +180,134 @@ router.post(
 router.get('/worker-feed/:workerId', async (req, res) => {
     try {
         const { workerId } = req.params;
-        const worker = await Work.findOne({ userId: workerId });
 
-        if (!worker) {
-            return res.status(404).json({ message: "Worker profile not found" });
+        // Try to find Work profile, but also check if worker exists in User model
+        let workerSkills = [];
+        let workerLocation = null;
+
+        // First try Work model
+        const worker = await Work.findOne({ userId: workerId });
+        if (worker) {
+            workerSkills = (worker.skills || []).map(s => s.toLowerCase().trim()).filter(s => s.length > 0);
+            workerLocation = worker.location;
+            console.log(`✅ Found worker in Work model. Skills: ${workerSkills.join(', ')}`);
+        } else {
+            // Fallback to User model if Work profile doesn't exist
+            const userProfile = await User.findById(workerId);
+            if (!userProfile) {
+                return res.status(404).json({ message: "Worker not found" });
+            }
+            console.log("⚠️ Worker profile in Work model not found, using User model");
         }
 
-        // --- NEW: SKILL CRITERIA ---
-        const workerSkills = (worker.skills || []).map(s => s.toLowerCase().trim());
+        // If worker has no skills, return nearby jobs (within 100km if location available)
+        if (workerSkills.length === 0) {
+            console.log("⚠️ Worker has no skills. Fetching nearby available jobs...");
+            let query = {
+                status: 'finding_workers',
+                userId: { $ne: workerId }
+            };
 
-        // Base Query
-        let query = {
-            status: 'finding_workers',
-            userId: { $ne: workerId },
-            // Filter jobs where the required skills overlap with worker's skills
-            // skillsRequired: { $in: workerSkills }
-            skillsRequired: {
-                $in: workerSkills.map(skill => new RegExp(skill, 'i'))
+            // Add location filter if available
+            if (workerLocation && workerLocation.coordinates &&
+                workerLocation.coordinates.length === 2 &&
+                !Number.isNaN(workerLocation.coordinates[0]) &&
+                !Number.isNaN(workerLocation.coordinates[1])) {
+
+                query.location = {
+                    $near: {
+                        $geometry: {
+                            type: 'Point',
+                            coordinates: workerLocation.coordinates
+                        },
+                        $maxDistance: 100000 // 100km
+                    }
+                };
             }
 
+            const jobs = await JobRequest.find(query).sort({ createdAt: -1 }).limit(20);
+            return res.status(200).json(jobs);
+        }
+
+        // Get all available jobs and filter manually for better matching
+        let baseQuery = {
+            status: 'finding_workers',
+            userId: { $ne: workerId }
         };
 
-        // Add location filter if coordinates exist
-        if (worker.location && worker.location.coordinates) {
-            query.location = {
+        // Add location filter if coordinates exist (within 100km)
+        if (workerLocation && workerLocation.coordinates &&
+            workerLocation.coordinates.length === 2 &&
+            !Number.isNaN(workerLocation.coordinates[0]) &&
+            !Number.isNaN(workerLocation.coordinates[1])) {
+
+            baseQuery.location = {
                 $near: {
                     $geometry: {
                         type: 'Point',
-                        coordinates: worker.location.coordinates
+                        coordinates: workerLocation.coordinates
                     },
-                    $maxDistance: 100000
+                    $maxDistance: 100000 // 100km
                 }
             };
         }
 
-        let jobs = await JobRequest.find(query).sort({ createdAt: -1 });
-        console.log("Worker skills:", workerSkills);
-        console.log("Jobs found:", jobs.length);
+        let jobs = await JobRequest.find(baseQuery).sort({ createdAt: -1 }).limit(50);
 
+        // Filter jobs that match worker skills (improved matching)
 
-        // FALLBACK: If no jobs found nearby with those specific skills, 
-        // show the latest 10 jobs matching their skills regardless of location
-        if (jobs.length === 0) {
-            jobs = await JobRequest.find({
+        const matchingJobs = jobs.filter(job => {
+            const jobSkills = (job.skillsRequired || []).map(s => s.toLowerCase().trim());
+            return jobSkills.some(jobSkill => {
+                const jobCategory = getSkillCategory(jobSkill);
+                return workerSkills.some(workerSkill => {
+                    // Direct match
+                    if (jobSkill.includes(workerSkill) || workerSkill.includes(jobSkill)) {
+                        return true;
+                    }
+                    // Category match
+                    const workerCategory = getSkillCategory(workerSkill);
+                    return jobCategory && workerCategory && jobCategory === workerCategory;
+                });
+            });
+        });
+
+        console.log(`✅ Found ${matchingJobs.length} jobs matching skills:`, workerSkills);
+
+        // FALLBACK: If no jobs found nearby, show jobs matching skills without location filter
+        if (matchingJobs.length === 0) {
+            console.log("⚠️ No nearby jobs found. Fetching jobs by skill only...");
+            const allJobs = await JobRequest.find({
                 status: 'finding_workers',
-                userId: { $ne: workerId },
-                skillsRequired: { $in: workerSkills } // Still keep the skill filter
-            })
-                .sort({ createdAt: -1 })
-                .limit(10);
+                userId: { $ne: workerId }
+            }).sort({ createdAt: -1 }).limit(50);
+
+            const nationwideMatchingJobs = allJobs.filter(job => {
+                const jobSkills = (job.skillsRequired || []).map(s => s.toLowerCase().trim());
+                return jobSkills.some(jobSkill => {
+                    const jobCategory = getSkillCategory(jobSkill);
+                    return workerSkills.some(workerSkill => {
+                        // Direct match
+                        if (jobSkill.includes(workerSkill) || workerSkill.includes(jobSkill)) {
+                            return true;
+                        }
+                        // Category match
+                        const workerCategory = getSkillCategory(workerSkill);
+                        return jobCategory && workerCategory && jobCategory === workerCategory;
+                    });
+                });
+            });
+
+            jobs = nationwideMatchingJobs.slice(0, 20);
+            console.log(`✅ Found ${jobs.length} jobs by skill matching nationwide`);
+        } else {
+            jobs = matchingJobs.slice(0, 50);
         }
 
         res.status(200).json(jobs);
     } catch (error) {
         console.error("❌ Worker Feed Error:", error);
-        res.status(500).json({ error: "Failed to fetch jobs" });
+        res.status(500).json({ error: "Failed to fetch jobs", details: error.message });
     }
 });
 router.get('/user/:userId', async (req, res) => {
@@ -237,10 +336,20 @@ router.get('/user/:userId', async (req, res) => {
             }
         }).sort({ createdAt: -1 }); // Newest first
 
+        // Add bids count to each job for display purposes
+        const jobsWithBidsCount = activeJobs.map(job => {
+            const bidsCount = job.bids ? job.bids.length : 0;
+            console.log(`Job ${job._id} has ${bidsCount} bids`);
+            return {
+                ...job.toObject(),
+                bidsCount
+            };
+        });
+
         res.status(200).json({
             success: true,
             count: activeJobs.length,
-            jobs: activeJobs
+            jobs: jobsWithBidsCount
         });
     } catch (error) {
         console.error("❌ Fetch User Jobs Error:", error);
@@ -737,6 +846,106 @@ router.get('/debug/workers', async (req, res) => {
     } catch (error) {
         console.error('Debug Error:', error);
         res.status(500).json({ error: "Failed to fetch workers" });
+    }
+});
+
+// DEBUG ENDPOINT - Check skill matching for a specific worker
+router.get('/debug/worker-jobs/:workerId', async (req, res) => {
+    try {
+        const { workerId } = req.params;
+        
+        // Get worker details
+        const worker = await Work.findOne({ userId: workerId });
+        if (!worker) {
+            return res.status(404).json({ 
+                success: false, 
+                error: "Worker not found",
+                workerId 
+            });
+        }
+
+        const workerSkills = (worker.skills || []).map(s => s.toLowerCase().trim()).filter(s => s.length > 0);
+
+        // Get all available jobs
+        const allJobs = await JobRequest.find({
+            status: 'finding_workers',
+            userId: { $ne: workerId }
+        });
+
+        // Find matching jobs using improved logic
+        const matchingJobs = allJobs.filter(job => {
+            const jobSkills = (job.skillsRequired || []).map(s => s.toLowerCase().trim());
+            return jobSkills.some(jobSkill => {
+                const jobCategory = getSkillCategory(jobSkill);
+                return workerSkills.some(workerSkill => {
+                    // Direct match
+                    if (jobSkill.includes(workerSkill) || workerSkill.includes(jobSkill)) {
+                        return true;
+                    }
+                    // Category match
+                    const workerCategory = getSkillCategory(workerSkill);
+                    return jobCategory && workerCategory && jobCategory === workerCategory;
+                });
+            });
+        });
+
+        res.status(200).json({
+            success: true,
+            debug: {
+                workerId,
+                workerName: worker.name,
+                workerSkills,
+                totalJobsAvailable: allJobs.length,
+                matchingJobsCount: matchingJobs.length,
+                matchingJobs: matchingJobs.map(j => ({
+                    _id: j._id,
+                    description: j.description?.substring(0, 50) + '...',
+                    skillsRequired: j.skillsRequired,
+                    status: j.status,
+                    createdAt: j.createdAt
+                }))
+            }
+        });
+    } catch (error) {
+        console.error('Debug Error:', error);
+        res.status(500).json({ error: "Failed to debug worker jobs", details: error.message });
+    }
+});
+
+// DEBUG ENDPOINT - Check all posted jobs with their skills
+router.get('/debug/jobs-status', async (req, res) => {
+    try {
+        const jobsByStatus = await JobRequest.aggregate([
+            {
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 },
+                    jobs: { $push: '$$ROOT' }
+                }
+            }
+        ]);
+
+        const summary = {};
+        jobsByStatus.forEach(group => {
+            summary[group._id] = {
+                count: group.count,
+                sampleJobs: group.jobs.slice(0, 3).map(j => ({
+                    _id: j._id,
+                    description: j.description?.substring(0, 50),
+                    skillsRequired: j.skillsRequired,
+                    createdAt: j.createdAt
+                }))
+            };
+        });
+
+        res.status(200).json({
+            success: true,
+            totalJobs: await JobRequest.countDocuments(),
+            byStatus: summary
+        });
+    } catch (error) {
+        console.error('Debug Error:', error);
+        res.status(500).json({ error: "Failed to debug jobs", details: error.message });
     }
 });
 
