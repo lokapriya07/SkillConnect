@@ -88,6 +88,7 @@ export interface ActiveJob {
   status: 'finding' | 'bidding' | 'scheduled' | 'tracking' | 'finding_workers';
   matchedWorkers?: WorkerProfile[];
   skillsRequired?: string[];
+  bids?: any[]; // Add bids property
 }
 
 interface AppState {
@@ -190,7 +191,9 @@ export const useAppStore = create<AppState>()(
           if (data.success) {
             // Map the backend 'jobs' to your state 'activeJobs'
             console.log("fetchActiveJobs: Found", data.jobs?.length || 0, "jobs");
+            console.log("fetchActiveJobs: Sample job bids:", data.jobs?.[0]?.bids ? data.jobs[0].bids.length : 0, data.jobs?.[0]?._id);
             set({ activeJobs: data.jobs || [] });
+            console.log("fetchActiveJobs: Updated store with jobs");
           }
         } catch (error) {
           console.error("Sync error:", error);

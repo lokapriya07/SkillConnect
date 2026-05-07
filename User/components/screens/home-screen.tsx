@@ -2,7 +2,7 @@ import { Colors } from "@/constants/Colors"
 import { categories, getFeaturedServices, getPopularServices } from "@/lib/services-data"
 import { useAppStore } from "@/lib/store"
 import { Ionicons } from "@expo/vector-icons"
-import { useRouter } from "expo-router"
+import { useRouter, useFocusEffect } from "expo-router"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
@@ -23,7 +23,8 @@ import {
   Linking,
   ActivityIndicator,
   TextInput,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  RefreshControl
 } from "react-native"
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -106,10 +107,14 @@ export default function HomeScreen() {
     return !['hired', 'assigned', 'booked', 'in_progress', 'completed', 'cancelled'].includes(status);
   });
 
+  console.log('All activeJobs:', activeJobs.map(job => ({ id: job._id, status: job.status, bidsLength: job.bids ? job.bids.length : 0 })));
+  console.log('visibleJobs:', visibleJobs.map(job => ({ id: job._id, status: job.status, bidsLength: job.bids ? job.bids.length : 0 })));
+
   // --- Notification State ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotiPanel, setShowNotiPanel] = useState(false);
   const notiPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const jobsPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const API_URL_NOTI = process.env.EXPO_PUBLIC_API_URL;
 
   const fetchUserNotifications = useCallback(async () => {
@@ -245,24 +250,35 @@ export default function HomeScreen() {
   //   }
   // }, [user]);
 
-    useEffect(() => {
-    if (!user) return;
-
-    fetchActiveJobs();
-
-    const interval = setInterval(() => {
+  useEffect(() => {
+    if (user) {
       fetchActiveJobs();
-    }, 5000); // every 5 seconds
-
-    return () => clearInterval(interval);
+    }
   }, [user]);
 
-    // Poll user notifications every 10 seconds
-    useEffect(() => {
-      fetchUserNotifications();
-      notiPollingRef.current = setInterval(fetchUserNotifications, 10000);
-      return () => { if (notiPollingRef.current) clearInterval(notiPollingRef.current); };
-    }, [fetchUserNotifications]);
+  // Refresh jobs when screen comes back into focus (e.g., returning from worker-bids)
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        fetchActiveJobs();
+      }
+    }, [user])
+  );
+
+  // Poll user notifications every 10 seconds
+  useEffect(() => {
+    fetchUserNotifications();
+    notiPollingRef.current = setInterval(fetchUserNotifications, 10000);
+    return () => { if (notiPollingRef.current) clearInterval(notiPollingRef.current); };
+  }, [fetchUserNotifications]);
+
+  // Poll active jobs every 15 seconds to update bid counts
+  useEffect(() => {
+    if (user) {
+      jobsPollingRef.current = setInterval(fetchActiveJobs, 15000);
+      return () => { if (jobsPollingRef.current) clearInterval(jobsPollingRef.current); };
+    }
+  }, [user]);
 
     useEffect(() => {
       const interval = setInterval(() => {
@@ -633,6 +649,14 @@ export default function HomeScreen() {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={false}
+            onRefresh={fetchActiveJobs}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
+        }
       >
         {visibleJobs && visibleJobs.length > 0 && visibleJobs.map((job) => {
           const stableId = job._id || job.id;
@@ -665,13 +689,7 @@ export default function HomeScreen() {
                     View Ranked Workers ({job.matchedWorkers?.length || 0})
                   </Text> */}
                   <Text style={styles.actionText}>
-                    View Ranked Workers (
-                    {(job as any).matchedWorkers?.length ||
-                      (job as any).bids?.length ||
-                      (job as any).proposals?.length ||
-                      (job as any).workers?.length ||
-                      0}
-                    )
+                    View Ranked Workers ({job.bids ? job.bids.length : 0})
                   </Text>
                   <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
                 </View>
