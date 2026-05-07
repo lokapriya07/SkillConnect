@@ -182,6 +182,7 @@ export default function DashboardScreen() {
 
 
   return (
+    
     <ScrollView
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}

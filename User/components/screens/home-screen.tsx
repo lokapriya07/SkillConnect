@@ -239,32 +239,44 @@ export default function HomeScreen() {
     );
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchActiveJobs();
-    }
-  }, [user]);
+  // useEffect(() => {
+  //   if (user) {
+  //     fetchActiveJobs();
+  //   }
+  // }, [user]);
 
-  // Poll user notifications every 10 seconds
-  useEffect(() => {
-    fetchUserNotifications();
-    notiPollingRef.current = setInterval(fetchUserNotifications, 10000);
-    return () => { if (notiPollingRef.current) clearInterval(notiPollingRef.current); };
-  }, [fetchUserNotifications]);
+    useEffect(() => {
+    if (!user) return;
 
-  useEffect(() => {
+    fetchActiveJobs();
+
     const interval = setInterval(() => {
-      let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
-
-      flatListRef.current?.scrollToIndex({
-        index: nextIndex,
-        animated: true
-      });
-
-    }, 3500);
+      fetchActiveJobs();
+    }, 5000); // every 5 seconds
 
     return () => clearInterval(interval);
-  }, [activeIndex]);
+  }, [user]);
+
+    // Poll user notifications every 10 seconds
+    useEffect(() => {
+      fetchUserNotifications();
+      notiPollingRef.current = setInterval(fetchUserNotifications, 10000);
+      return () => { if (notiPollingRef.current) clearInterval(notiPollingRef.current); };
+    }, [fetchUserNotifications]);
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        let nextIndex = activeIndex === BANNERS.length - 1 ? 0 : activeIndex + 1;
+
+        flatListRef.current?.scrollToIndex({
+          index: nextIndex,
+          animated: true
+        });
+
+      }, 3500);
+
+      return () => clearInterval(interval);
+    }, [activeIndex]);
 
 
   const handleScroll = (event: any) => {
