@@ -157,7 +157,6 @@ export default function HomeScreen() {
   const [isAILoading, setIsAILoading] = useState(false);
   const chatScrollRef = useRef<ScrollView>(null);
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleSendAI = async () => {
     if (!aiInput.trim()) return;

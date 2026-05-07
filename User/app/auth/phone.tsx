@@ -7,15 +7,6 @@ export default function PhonePage() {
   const router = useRouter()
 
   return (
-    <PhoneAuthScreen
-      // onSubmit receives 'fullPhone' from PhoneAuthScreen logic
-      onSubmit={(phone: string) =>
-        router.push({
-          pathname: "/auth/otp",
-          params: { phone: phone }
-        })
-      }
-      onSkip={() => router.replace("/(tabs)")}
-    />
+    <PhoneAuthScreen />
   )
 }

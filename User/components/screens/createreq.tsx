@@ -23,7 +23,7 @@ import { useVideoPlayer, VideoView } from "expo-video"
 export default function CreateRequestScreen() {
     const router = useRouter()
     const insets = useSafeAreaInsets()
-    const { setActiveJob } = useAppStore()
+    const { addActiveJob } = useAppStore()
 
     // --- STATE ---
     const [mediaUri, setMediaUri] = useState<string | null>(null)
@@ -147,7 +147,8 @@ export default function CreateRequestScreen() {
             return
         }
 
-        setActiveJob({
+        addActiveJob({
+            id: Date.now().toString(), // Generate unique ID
             description,
             budget,
             status: "finding",
