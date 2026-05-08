@@ -31,12 +31,29 @@ const updateWorkProfile = async (req, res) => {
       { $set: updateData },
       { new: true, upsert: true }
     );
-   
+
+    // Calculate completion percentage and set isProfileComplete
+    const fields = ['name', 'bio', 'skills', 'address', 'hourlyRate', 'location'];
+    let filledFields = 0;
+
+    fields.forEach(field => {
+      if (updatedWork[field] && (Array.isArray(updatedWork[field]) ? updatedWork[field].length > 0 : true)) {
+        filledFields++;
+      }
+    });
+
+    const completionPercentage = Math.round((filledFields / fields.length) * 100);
+    updatedWork.isProfileComplete = completionPercentage === 100;
+
+    await updatedWork.save();
 
     res.status(200).json({
       success: true,
       message: "Profile updated successfully",
-      data: updatedWork
+      data: {
+        ...updatedWork._doc,
+        completionPercentage
+      }
     });
 
   } catch (error) {
@@ -71,11 +88,16 @@ const getWorkProfile = async (req, res) => {
 
     const completionPercentage = Math.round((filledFields / fields.length) * 100);
 
+    // Handle field name change: status vs verificationStatus
+    const status = profile.status || (profile.verificationStatus === 'verified' ? 'verified' : 'unverified');
+
     res.status(200).json({
       success: true,
       data: {
         ...profile._doc,
-        completionPercentage // Send this to the frontend
+        status,
+        completionPercentage, // Send this to the frontend
+        isProfileComplete: profile.isProfileComplete
       }
     });
   } catch (error) {

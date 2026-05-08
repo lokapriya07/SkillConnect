@@ -11,6 +11,7 @@ import {
   LayoutAnimation,
   RefreshControl,
   Switch,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
@@ -31,6 +32,8 @@ export default function DashboardScreen() {
   const [loadingJobs, setLoadingJobs] = useState(true);
   const { currentLocation } = useAppStore();
   const [profileCompletion, setProfileCompletion] = useState(0);
+  const [workerStatus, setWorkerStatus] = useState("unverified");
+  const [isProfileComplete, setIsProfileComplete] = useState(false);
   const [rating, setRating] = useState("0");
   const [completed, setCompleted] = useState("0");
   const [onTime, setOnTime] = useState("0%");
@@ -142,10 +145,14 @@ export default function DashboardScreen() {
         if (result.success && result.data) {
           setWorkerName(result.data.name || "Worker");
           setProfileCompletion(result.data.completionPercentage || 0);
+          setWorkerStatus(result.data.status || "unverified");
+          setIsProfileComplete(result.data.isProfileComplete || false);
           setRating(result.data.averageRating ? result.data.averageRating.toFixed(1) : "0");
           setOnTime(result.data.onTimePercentage ? `${result.data.onTimePercentage}%` : "0%");
         } else {
           setProfileCompletion(0);
+          setWorkerStatus("unverified");
+          setIsProfileComplete(false);
           setRating("0");
           setOnTime("0%");
         }
@@ -157,6 +164,17 @@ export default function DashboardScreen() {
   };
 
   useEffect(() => { initializeDashboard(); }, []);
+
+  // Check profile and verification status
+  useEffect(() => {
+    if (!isProfileComplete && profileCompletion !== undefined) {
+      // Redirect to complete profile
+      router.replace("/profile");
+    } else if (workerStatus === 'unverified') {
+      // Show verification message
+      Alert.alert("Account Under Verification", "Your account is under verification. You will be able to access jobs once verified.");
+    }
+  }, [isProfileComplete, workerStatus, profileCompletion]);
 
   // Polling for dynamic updates
   useEffect(() => {
@@ -393,11 +411,28 @@ export default function DashboardScreen() {
           <View style={styles.emptyIcon}>
             <Feather name="inbox" size={28} color="#a5b4fc" />
           </View>
-          <Text style={styles.emptyTitle}>No jobs found nearby</Text>
-          <Text style={styles.emptySub}>Update your profile skills to get matched with more clients</Text>
-          <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/profile")}>
-            <Text style={styles.emptyBtnText}>Update Profile</Text>
-          </TouchableOpacity>
+          {workerStatus === 'unverified' ? (
+            <>
+              <Text style={styles.emptyTitle}>Account Under Verification</Text>
+              <Text style={styles.emptySub}>Your account is being verified. You'll be able to access jobs once approved.</Text>
+            </>
+          ) : !isProfileComplete ? (
+            <>
+              <Text style={styles.emptyTitle}>Complete Your Profile</Text>
+              <Text style={styles.emptySub}>Finish setting up your profile to start receiving job matches.</Text>
+              <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/profile")}>
+                <Text style={styles.emptyBtnText}>Complete Profile</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.emptyTitle}>No jobs found nearby</Text>
+              <Text style={styles.emptySub}>Update your profile skills to get matched with more clients</Text>
+              <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/profile")}>
+                <Text style={styles.emptyBtnText}>Update Profile</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 
@@ -689,7 +724,7 @@ const styles = StyleSheet.create({
   earningItemDate: { fontSize: 11, color: "#94a3b8", marginTop: 2 },
   earningItemAmount: { fontSize: 16, fontWeight: "900", color: "#0f172a" },
   emptyEarnings: {
-    alignItems: "center", justifyContent: "center", paddingvertical: 60,
+    alignItems: "center", justifyContent: "center", paddingVertical: 60,
   },
   emptyEarningsText: { fontSize: 16, color: "#94a3b8", marginTop: 12, fontWeight: "500" },
   modalFooter: {

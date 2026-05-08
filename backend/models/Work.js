@@ -16,11 +16,12 @@ const workSchema = new mongoose.Schema({
   skills: [String],
   languages: [String],
   workingDays: [String],
-  verificationStatus: {
+  status: {
     type: String,
-    enum: ['not_submitted', 'pending', 'assigned', 'verified'],
-    default: 'not_submitted'
+    enum: ['unverified', 'verified'],
+    default: 'unverified'
   },
+  isProfileComplete: { type: Boolean, default: false },
   experience: Number,
   aadhaarLastFour: String,
 

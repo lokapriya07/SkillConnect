@@ -188,6 +188,13 @@ router.get('/worker-feed/:workerId', async (req, res) => {
         // First try Work model
         const worker = await Work.findOne({ userId: workerId });
         if (worker) {
+            // Check if worker is verified and profile is complete
+            const currentStatus = worker.status || (worker.verificationStatus === 'verified' ? 'verified' : 'unverified');
+            if (currentStatus !== 'verified' || !worker.isProfileComplete) {
+                console.log(`⚠️ Worker not verified or profile incomplete. Status: ${currentStatus}, Profile Complete: ${worker.isProfileComplete}`);
+                return res.status(200).json([]);
+            }
+
             workerSkills = (worker.skills || []).map(s => s.toLowerCase().trim()).filter(s => s.length > 0);
             workerLocation = worker.location;
             console.log(`✅ Found worker in Work model. Skills: ${workerSkills.join(', ')}`);
@@ -198,6 +205,8 @@ router.get('/worker-feed/:workerId', async (req, res) => {
                 return res.status(404).json({ message: "Worker not found" });
             }
             console.log("⚠️ Worker profile in Work model not found, using User model");
+            // Since no Work profile, cannot show jobs
+            return res.status(200).json([]);
         }
 
         // If worker has no skills, return nearby jobs (within 100km if location available)

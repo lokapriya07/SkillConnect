@@ -46,6 +46,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { height, width } = Dimensions.get("window");
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // --- Interfaces ---
 // Defining this interface resolves the "Property does not exist" error
@@ -466,7 +467,7 @@ export default function JobsPage() {
                 <View style={styles.dividerVertical} />
                 <View>
                   <Text style={styles.detailsLabel}>Type</Text>
-                  <Text style={styles.detailsValue}>{getJobBudgetType(selectedJob)}{selectedJob?.budget?.type === 'hourly' ? ' Rate' : ''}</Text>
+                  <Text style={styles.detailsValue}>{getJobBudgetType(selectedJob)}{typeof selectedJob?.budget !== 'number' && selectedJob?.budget?.type === 'hourly' ? ' Rate' : ''}</Text>
                 </View>
               </View>
               {getJobHoursLabel(selectedJob) && (
@@ -680,12 +681,12 @@ export default function JobsPage() {
             </TouchableOpacity>
           </View>
           <Image
-            source={{ uri: previewImageUrl }}
+            source={previewImageUrl ? { uri: previewImageUrl } : undefined}
             style={[
               styles.imagePreviewImage,
-              imageZoom && { width: width * 1.5, height: height * 0.8 }
+              imageZoom ? { width: width * 1.5, height: height * 0.8 } : undefined,
             ]}
-            resizeMode={imageZoom ? "contain" : "contain"}
+            resizeMode="contain"
           />
         </View>
       </View>

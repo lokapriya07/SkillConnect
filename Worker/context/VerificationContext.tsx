@@ -16,13 +16,22 @@ export function VerificationProvider({ children }: { children: React.ReactNode }
 
   const refreshVerificationStatus = useCallback(async () => {
     try {
-      const isVerified = await AsyncStorage.getItem('is_verified_worker');
-      const hasRequested = await AsyncStorage.getItem('verification_requested');
-
-      if (isVerified === 'true') {
-        setVerificationStatus('verified');
-      } else if (hasRequested === 'true') {
-        setVerificationStatus('pending');
+      const userStr = await AsyncStorage.getItem('user');
+      if (!userStr) {
+        setVerificationStatus('not_submitted');
+        return;
+      }
+      const user = JSON.parse(userStr);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/work/profile/${user.id}`);
+      const result = await response.json();
+      if (result.success && result.data) {
+        const rawStatus = result.data.status;
+        const normalizedStatus: VerificationStatus =
+          rawStatus === 'pending' ? 'pending' :
+          rawStatus === 'assigned' ? 'assigned' :
+          rawStatus === 'verified' ? 'verified' :
+          'not_submitted';
+        setVerificationStatus(normalizedStatus);
       } else {
         setVerificationStatus('not_submitted');
       }

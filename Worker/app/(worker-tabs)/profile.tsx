@@ -91,12 +91,19 @@ export default function ProfilePage({ navigation }: any) {
   const [isEditing, setIsEditing] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
   const params = useLocalSearchParams();
+  const { verificationStatus, setVerificationStatus } = useVerification();
 
   useEffect(() => {
     if (params.tab) {
       setActiveTab(params.tab as string);
     }
   }, [params.tab]);
+
+  useEffect(() => {
+    if (!params.tab && verificationStatus !== 'verified') {
+      setActiveTab('verification');
+    }
+  }, [params.tab, verificationStatus]);
 
   // --- NEW VERIFICATION STATES ---
   
@@ -191,6 +198,7 @@ export default function ProfilePage({ navigation }: any) {
   const [aadhaarLastFour, setAadhaarLastFour] = useState("");
   const [experience, setExperience] = useState("");
   const [selectedCat, setSelectedCat] = useState("Plumber");
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure?", [
@@ -214,9 +222,6 @@ export default function ProfilePage({ navigation }: any) {
       }
     ]);
   };
-  
-  // Use verification context for real-time status updates
-  const { verificationStatus, setVerificationStatus } = useVerification();
   
   // Type guard: verificationStatus includes 'verified' from context
   type VerificationStatusType = 'not_submitted' | 'pending' | 'assigned' | 'verified';
@@ -269,8 +274,10 @@ export default function ProfilePage({ navigation }: any) {
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
   const handleSave = async () => {
     try {
+      setSaveStatus('saving');
       const storedId = await AsyncStorage.getItem('userId');
       if (!storedId) {
+        setSaveStatus('idle');
         Alert.alert("Error", "User session not found. Please log in again.");
         return;
       }
@@ -306,12 +313,16 @@ export default function ProfilePage({ navigation }: any) {
         await AsyncStorage.setItem("user", JSON.stringify(userObj));
         // -----------------------------------
 
+        setSaveStatus('saved');
         Alert.alert("Success", "Profile updated successfully!");
         setIsEditing(false);
+        setTimeout(() => setSaveStatus('idle'), 3000);
       } else {
+        setSaveStatus('idle');
         Alert.alert("Update Failed", result.message || "Something went wrong.");
       }
     } catch (error) {
+      setSaveStatus('idle');
       console.error("Save Error:", error);
       Alert.alert("Network Error", "Unable to connect to the server.");
     }
@@ -628,9 +639,30 @@ export default function ProfilePage({ navigation }: any) {
                   )}
                 </View>
 
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                  <Save size={18} color="#FFF" /><Text style={styles.saveBtnText}>Save Changes</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.saveBtn,
+                    saveStatus === 'saved' && styles.saveBtnSuccess,
+                    saveStatus === 'saving' && styles.saveBtnSaving,
+                  ]}
+                  onPress={handleSave}
+                  disabled={saveStatus === 'saving'}
+                >
+                  {saveStatus === 'saved' ? (
+                    <CheckCircle2 size={18} color="#FFF" />
+                  ) : (
+                    <Save size={18} color="#FFF" />
+                  )}
+                  <Text style={[styles.saveBtnText, saveStatus === 'saved' && styles.saveBtnTextSuccess]}>
+                    {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Save Changes'}
+                  </Text>
                 </TouchableOpacity>
+                {saveStatus === 'saved' && (
+                  <View style={styles.saveConfirmation}>
+                    <CheckCircle2 size={16} color="#fff" />
+                    <Text style={styles.saveConfirmationText}>Profile saved!</Text>
+                  </View>
+                )}
               </>
             )}
             
@@ -1081,7 +1113,12 @@ const styles = StyleSheet.create({
   dropdownListContainer: { marginTop: 5, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, backgroundColor: '#FFF', height: 150, elevation: 5 },
   dropdownItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   saveBtn: { backgroundColor: '#2563eb', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 16, borderRadius: 12, gap: 10 },
+  saveBtnSuccess: { backgroundColor: '#16a34a' },
+  saveBtnSaving: { backgroundColor: '#3b82f6' },
   saveBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  saveBtnTextSuccess: { color: '#f8fdf8' },
+  saveConfirmation: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#16a34a', padding: 12, borderRadius: 12 },
+  saveConfirmationText: { color: '#fff', fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center' },
   inputWrap: { marginBottom: 16 },
   label: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 6 },

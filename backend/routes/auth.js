@@ -127,6 +127,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const Work = require('../models/Work');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
@@ -162,6 +163,17 @@ router.post('/signup', async (req, res) => {
     });
 
     await user.save();
+
+    // Create empty worker profile if role is worker
+    if (role === 'worker') {
+      const workerProfile = new Work({
+        userId: user._id,
+        status: 'unverified',
+        isProfileComplete: false
+      });
+      await workerProfile.save();
+    }
+
     res.status(201).json({ success: true, msg: "Account created successfully" });
   } catch (err) {
     console.error("Signup Error:", err);
