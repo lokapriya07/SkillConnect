@@ -184,6 +184,7 @@ export default function DashboardScreen() {
       const workerId = user?._id || user?.id || await AsyncStorage.getItem("userId") || await AsyncStorage.getItem("workerId");
       if (workerId) {
         await fetchAssignedJobs(workerId);
+        await fetchMatchedJobs(workerId);
       }
     }, 15000);
     return () => {

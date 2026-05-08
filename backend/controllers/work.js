@@ -1,6 +1,18 @@
 const mongoose = require('mongoose');
 const Work = require('../models/Work');
 
+const hasValidLocation = (location) => {
+  return (
+    location &&
+    location.coordinates &&
+    Array.isArray(location.coordinates) &&
+    location.coordinates.length === 2 &&
+    !Number.isNaN(location.coordinates[0]) &&
+    !Number.isNaN(location.coordinates[1]) &&
+    !(location.coordinates[0] === 0 && location.coordinates[1] === 0)
+  );
+};
+
 const updateWorkProfile = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -37,7 +49,11 @@ const updateWorkProfile = async (req, res) => {
     let filledFields = 0;
 
     fields.forEach(field => {
-      if (updatedWork[field] && (Array.isArray(updatedWork[field]) ? updatedWork[field].length > 0 : true)) {
+      if (field === 'location') {
+        if (hasValidLocation(updatedWork.location)) {
+          filledFields++;
+        }
+      } else if (updatedWork[field] && (Array.isArray(updatedWork[field]) ? updatedWork[field].length > 0 : true)) {
         filledFields++;
       }
     });
@@ -81,7 +97,11 @@ const getWorkProfile = async (req, res) => {
     let filledFields = 0;
 
     fields.forEach(field => {
-      if (profile[field] && (Array.isArray(profile[field]) ? profile[field].length > 0 : true)) {
+      if (field === 'location') {
+        if (hasValidLocation(profile.location)) {
+          filledFields++;
+        }
+      } else if (profile[field] && (Array.isArray(profile[field]) ? profile[field].length > 0 : true)) {
         filledFields++;
       }
     });
@@ -97,7 +117,7 @@ const getWorkProfile = async (req, res) => {
         ...profile._doc,
         status,
         completionPercentage, // Send this to the frontend
-        isProfileComplete: profile.isProfileComplete
+        isProfileComplete: completionPercentage === 100
       }
     });
   } catch (error) {

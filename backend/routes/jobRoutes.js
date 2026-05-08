@@ -221,7 +221,8 @@ router.get('/worker-feed/:workerId', async (req, res) => {
             if (workerLocation && workerLocation.coordinates &&
                 workerLocation.coordinates.length === 2 &&
                 !Number.isNaN(workerLocation.coordinates[0]) &&
-                !Number.isNaN(workerLocation.coordinates[1])) {
+                !Number.isNaN(workerLocation.coordinates[1]) &&
+                !(workerLocation.coordinates[0] === 0 && workerLocation.coordinates[1] === 0)) {
 
                 query.location = {
                     $near: {
@@ -248,7 +249,8 @@ router.get('/worker-feed/:workerId', async (req, res) => {
         if (workerLocation && workerLocation.coordinates &&
             workerLocation.coordinates.length === 2 &&
             !Number.isNaN(workerLocation.coordinates[0]) &&
-            !Number.isNaN(workerLocation.coordinates[1])) {
+            !Number.isNaN(workerLocation.coordinates[1]) &&
+            !(workerLocation.coordinates[0] === 0 && workerLocation.coordinates[1] === 0)) {
 
             baseQuery.location = {
                 $near: {

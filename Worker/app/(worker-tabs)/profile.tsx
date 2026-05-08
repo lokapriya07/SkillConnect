@@ -257,18 +257,39 @@ export default function ProfilePage({ navigation }: any) {
   // 2. CALL THIS when the [Dev Only] Complete Verification button is clicked
   const handleCompleteVerification = async () => {
     try {
-      // Update context state (this updates Header immediately)
-      setVerificationStatus('verified');
-      
-      // Persist to storage
-      await AsyncStorage.setItem('is_verified_worker', 'true');
+      const storedId = await AsyncStorage.getItem('userId');
+      if (!storedId) {
+        Alert.alert("Error", "User session not found. Please log in again.");
+        return;
+      }
 
-      // Auto-switch to profile tab so the verification tab can disappear
-      setActiveTab('profile');
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) {
+        Alert.alert("Config Error", "API URL not found. Please restart the app.");
+        return;
+      }
 
-      Alert.alert("Verified!", "You are now a trusted worker.");
+      const response = await fetch(`${apiUrl}/api/work/profile/${storedId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'verified' }),
+      });
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setVerificationStatus('verified');
+        await AsyncStorage.setItem('is_verified_worker', 'true');
+        setActiveTab('profile');
+        Alert.alert("Verified!", "You are now a trusted worker.");
+      } else {
+        console.error('Verification persistence failed:', result);
+        Alert.alert("Verification Failed", result.message || "Unable to persist verification status.");
+      }
     } catch (error) {
       console.error(error);
+      Alert.alert("Network Error", "Unable to verify at this time.");
     }
   };
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
