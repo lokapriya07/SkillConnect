@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from "react-native"
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, Image } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Colors } from "@/constants/Colors"
 import { useRouter } from "expo-router"
@@ -34,51 +34,29 @@ export default function CreateRequestScreen() {
     const isProcessingRef = useRef(false)
 
     // IMAGE/VIDEO PICKER
-    const pickMedia = async (mediaType: 'photo' | 'video', source: 'library' | 'camera') => {
-        let permissionStatus;
-        if (source === 'camera') {
-            permissionStatus = await ImagePicker.requestCameraPermissionsAsync();
-            if (permissionStatus.status !== 'granted') {
-                Alert.alert("Permission needed", "Need camera access to take photos or videos.");
-                return;
-            }
-        } else {
-            permissionStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (permissionStatus.status !== 'granted') {
-                Alert.alert("Permission needed", `Need access to gallery for ${mediaType}.`);
-                return;
-            }
+    const pickMedia = async (mediaType: 'photo' | 'video') => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+        if (status !== 'granted') {
+            Alert.alert("Permission needed", `Need access to gallery for ${mediaType}.`)
+            return
         }
 
-        let result;
-        if (source === 'camera') {
-            result = await ImagePicker.launchCameraAsync({
-                mediaTypes: mediaType === 'photo'
-                    ? ImagePicker.MediaTypeOptions.Images
-                    : ImagePicker.MediaTypeOptions.Videos,
-                allowsEditing: true,
-                aspect: mediaType === 'photo' ? [1, 1] : [16, 9],
-                quality: 0.7,
-                ...(mediaType === 'video' && { videoMaxDuration: 15 })
-            });
-        } else {
-            result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: mediaType === 'photo'
-                    ? ImagePicker.MediaTypeOptions.Images
-                    : ImagePicker.MediaTypeOptions.Videos,
-                allowsEditing: true,
-                aspect: mediaType === 'photo' ? [1, 1] : [16, 9],
-                quality: 0.7,
-                ...(mediaType === 'video' && { videoMaxDuration: 15 })
-            });
-        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: mediaType === 'photo'
+                ? ImagePicker.MediaTypeOptions.Images
+                : ImagePicker.MediaTypeOptions.Videos,
+            allowsEditing: true,
+            aspect: mediaType === 'photo' ? [1, 1] : [16, 9],
+            quality: 0.7,
+            ...(mediaType === 'video' && { videoMaxDuration: 15 })
+        })
 
         if (!result.canceled) {
-            const uri = result.assets[0].uri;
+            const uri = result.assets[0].uri
             if (mediaType === 'photo') {
-                setImageUri(uri);
+                setImageUri(uri)
             } else {
-                setVideoUri(uri);
+                setVideoUri(uri)
             }
         }
     }
@@ -249,12 +227,7 @@ export default function CreateRequestScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
-                showsVerticalScrollIndicator={false}
-            >
+            <ScrollView contentContainerStyle={styles.scrollContent}>
                 <Text style={styles.helperText}>Add photo/video + voice note for faster responses</Text>
 
                 <View style={styles.section}>
@@ -267,22 +240,13 @@ export default function CreateRequestScreen() {
                             </TouchableOpacity>
                         </View>
                     ) : (
-                        <View style={styles.mediaOptions}>
-                            <TouchableOpacity style={styles.mediaOption} onPress={() => pickMedia('photo', 'camera')}>
-                                <View style={styles.uploadIconCircle}>
-                                    <Ionicons name="camera" size={28} color={Colors.primary || '#007AFF'} />
-                                </View>
-                                <Text style={styles.uploadText}>Take Photo</Text>
-                                <Text style={styles.uploadSubText}>Live capture</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.mediaOption} onPress={() => pickMedia('photo', 'library')}>
-                                <View style={styles.uploadIconCircle}>
-                                    <Ionicons name="images" size={28} color={Colors.primary || '#007AFF'} />
-                                </View>
-                                <Text style={styles.uploadText}>Choose Photo</Text>
-                                <Text style={styles.uploadSubText}>From gallery</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity style={styles.uploadBox} onPress={() => pickMedia('photo')}>
+                            <View style={styles.uploadIconCircle}>
+                                <Ionicons name="camera" size={28} color={Colors.primary || '#007AFF'} />
+                            </View>
+                            <Text style={styles.uploadText}>Tap for Photo</Text>
+                            <Text style={styles.uploadSubText}>Clear photo of problem</Text>
+                        </TouchableOpacity>
                     )}
                 </View>
 
@@ -296,22 +260,13 @@ export default function CreateRequestScreen() {
                             </TouchableOpacity>
                         </View>
                     ) : (
-                        <View style={styles.mediaOptions}>
-                            <TouchableOpacity style={styles.mediaOption} onPress={() => pickMedia('video', 'camera')}>
-                                <View style={styles.uploadIconCircle}>
-                                    <Ionicons name="videocam" size={28} color={Colors.primary || '#007AFF'} />
-                                </View>
-                                <Text style={styles.uploadText}>Record Video</Text>
-                                <Text style={styles.uploadSubText}>Live capture</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.mediaOption} onPress={() => pickMedia('video', 'library')}>
-                                <View style={styles.uploadIconCircle}>
-                                    <Ionicons name="folder" size={28} color={Colors.primary || '#007AFF'} />
-                                </View>
-                                <Text style={styles.uploadText}>Choose Video</Text>
-                                <Text style={styles.uploadSubText}>From gallery</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity style={styles.uploadBox} onPress={() => pickMedia('video')}>
+                            <View style={styles.uploadIconCircle}>
+                                <Ionicons name="videocam" size={28} color={Colors.primary || '#007AFF'} />
+                            </View>
+                            <Text style={styles.uploadText}>Tap for Video</Text>
+                            <Text style={styles.uploadSubText}>Max 15 seconds</Text>
+                        </TouchableOpacity>
                     )}
                 </View>
 
@@ -387,35 +342,23 @@ export default function CreateRequestScreen() {
 const getStyles = (isDark: boolean) => {
     return StyleSheet.create({
         container: { flex: 1, backgroundColor: isDark ? Colors.backgroundDark : Colors.background },
-        header: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 20,
-            paddingVertical: 15,
-            borderBottomWidth: 1,
-            borderBottomColor: isDark ? Colors.borderDark : Colors.border
+        header: { 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            paddingHorizontal: 20, 
+            paddingVertical: 15, 
+            borderBottomWidth: 1, 
+            borderBottomColor: isDark ? Colors.borderDark : Colors.border 
         },
         backBtn: { padding: 8, marginLeft: -8 },
         headerTitle: { fontSize: 18, fontWeight: '700', color: isDark ? Colors.textDark : Colors.text },
-        scrollContent: { flexGrow: 1, padding: 20, paddingBottom: 180 },
+        scrollContent: { padding: 20, paddingBottom: 100 },
         helperText: { fontSize: 14, color: isDark ? Colors.textSecondaryDark : Colors.textSecondary, marginBottom: 20 },
         section: { marginBottom: 25 },
         sectionLabel: { fontSize: 16, fontWeight: '700', marginBottom: 12, color: isDark ? Colors.textDark : Colors.text },
         uploadBox: { 
             height: 180, 
-            borderRadius: 16, 
-            borderWidth: 2, 
-            borderColor: isDark ? '#404040' : '#E0E0E0', 
-            borderStyle: 'dashed', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            backgroundColor: isDark ? '#2C2C2E' : '#F9F9F9' 
-        },
-        mediaOptions: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-        mediaOption: { 
-            flex: 1,
-            height: 140, 
             borderRadius: 16, 
             borderWidth: 2, 
             borderColor: isDark ? '#404040' : '#E0E0E0', 
